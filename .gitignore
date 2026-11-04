@@ -5,3 +5,4 @@ lib-test/
 dist/
 *.local.md
 .DS_Store
+.vendor-tmp/
