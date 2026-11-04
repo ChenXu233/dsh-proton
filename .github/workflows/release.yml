@@ -22,6 +22,10 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # 即使没配 secret 也保持变量存在：setup-node 写进 .npmrc 的 ${NODE_AUTH_TOKEN}
+    # 在变量未定义时会让 npm 直接报 "Failed to replace env in config"。
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
