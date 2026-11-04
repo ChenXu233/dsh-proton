@@ -2,6 +2,11 @@
   "name": "dsh-proton",
   "version": "0.1.0",
   "description": "质子 —— DSH 的通用 Region / Renderer / Decorator 运行时（不含任何产品域语义）",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChenXu233/dsh-proton.git"
+  },
+  "homepage": "https://github.com/ChenXu233/dsh-proton#readme",
   "type": "module",
   "license": "Apache-2.0",
   "main": "lib/index.js",

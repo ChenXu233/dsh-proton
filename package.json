@@ -4,6 +4,11 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "description": "质子：DSH 的通用 UI 组合与远程工作区 PoC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChenXu233/dsh-proton.git"
+  },
+  "homepage": "https://github.com/ChenXu233/dsh-proton#readme",
   "type": "module",
   "packageManager": "pnpm@11.28.5",
   "scripts": {

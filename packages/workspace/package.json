@@ -2,6 +2,11 @@
   "name": "dsh-proton-workspace",
   "version": "0.1.0",
   "description": "质子 · 工作区域：目录流的选择与接纳，来源由任意 backend 通过 ctx.protonWorkspace 注册",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChenXu233/dsh-proton.git"
+  },
+  "homepage": "https://github.com/ChenXu233/dsh-proton#readme",
   "type": "module",
   "license": "Apache-2.0",
   "main": "lib/index.js",
