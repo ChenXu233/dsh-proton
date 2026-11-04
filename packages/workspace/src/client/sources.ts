@@ -39,6 +39,14 @@ export interface WorkspaceSource {
    * while rendering, so the answer comes from state the source already holds.
    */
   describe?(path: string): SourceMark | undefined
+  /**
+   * Report that {@link WorkspaceSource.describe} started answering differently
+   * — the state behind a mark arrived, or a machine went away. Sources that
+   * answer from a live remote snapshot must implement this, or the rows that
+   * asked before the answer arrived have no reason to ask again.
+   * @returns unsubscriber.
+   */
+  subscribe?(listener: () => void): () => void
 }
 
 /** One collected row, paired with the source that offered it. */
@@ -57,6 +65,9 @@ export interface CollectResult {
 export class WorkspaceSources {
   private readonly sources = new Map<string, WorkspaceSource>()
   private readonly listeners = new Set<() => void>()
+  /** Per-source unsubscriber, so a departing source stops waking the ledger. */
+  private readonly sourceListeners = new Map<string, () => void>()
+  private readonly markListeners = new Set<() => void>()
   private version = 0
 
   readonly getVersion = (): number => this.version
@@ -75,11 +86,17 @@ export class WorkspaceSources {
   addSource(source: WorkspaceSource): () => void {
     if (this.sources.has(source.id)) throw new Error(`workspace source "${source.id}" is already registered`)
     this.sources.set(source.id, source)
+    const off = source.subscribe?.(() => {
+      for (const listener of [...this.markListeners]) listener()
+    })
+    if (off !== undefined) this.sourceListeners.set(source.id, off)
     this.changed()
     let active = true
     return () => {
       if (!active) return
       active = false
+      this.sourceListeners.get(source.id)?.()
+      this.sourceListeners.delete(source.id)
       this.sources.delete(source.id)
       this.changed()
     }
@@ -87,6 +104,18 @@ export class WorkspaceSources {
 
   list(): readonly WorkspaceSource[] {
     return [...this.sources.values()]
+  }
+
+  /**
+   * Watch every source's own knowledge changes, including sources registered
+   * after this call. Batched on purpose: one notification per source event, no
+   * per-path registry — the ledger says "ask again", not "this path changed".
+   * @param listener - called whenever any source reports a change.
+   * @returns unsubscriber.
+   */
+  onMarkChange(listener: () => void): () => void {
+    this.markListeners.add(listener)
+    return () => { this.markListeners.delete(listener) }
   }
 
   /**

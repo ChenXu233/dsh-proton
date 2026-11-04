@@ -30,7 +30,7 @@ index 6d35a23..b6a1f25 100644
    font-size: 12px;
    line-height: 16px;
 diff --git a/packages/workspace-seat/vendor/ui-workspace/src/client/rows/Rows.tsx b/packages/workspace-seat/vendor/ui-workspace/src/client/rows/Rows.tsx
-index 216a6fc..2d4c669 100644
+index 216a6fc..fdf5fa1 100644
 --- a/packages/workspace-seat/vendor/ui-workspace/src/client/rows/Rows.tsx
 +++ b/packages/workspace-seat/vendor/ui-workspace/src/client/rows/Rows.tsx
 @@ -16,13 +16,15 @@ import clsx from 'clsx'
@@ -50,12 +50,24 @@ index 216a6fc..2d4c669 100644
  import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
  import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
  import css from './Rows.module.css'
-@@ -157,17 +159,27 @@ function createdLabel(createdAt: number, t: RowTranslate): string {
+@@ -157,17 +159,39 @@ function createdLabel(createdAt: number, t: RowTranslate): string {
    return t('hover.created', { time: `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` })
  }
  
 -/** Hover-card body: workspace title, display directory path, absolute creation time. */
 -function WorkspaceHoverContent({ label, cwd, createdAt, t }: {
++/**
++ * The name cell. The stored title keeps its ` @machine` tail — search matches
++ * it and rename uniqueness leans on it — so draw that tail as its own small
++ * label instead of repeating it after the name.
++ */
++function rowTitle(label: string, mark: WorkspaceMark | undefined) {
++  const suffix = mark?.machine === undefined ? undefined : `@${mark.machine}`
++  if (suffix === undefined) return label
++  const trimmed = label.endsWith(` ${suffix}`) ? label.slice(0, -suffix.length - 1) : label
++  return <>{trimmed}<span className={css.machine}>{suffix}</span></>
++}
++
 +/**
 + * Hover-card body: workspace title, where it lives, absolute creation time.
 + * A stand-in directory shows the machine and the path that machine really
@@ -81,7 +93,7 @@ index 216a6fc..2d4c669 100644
        <div className={css.hoverTime}>{createdLabel(createdAt, t)}</div>
      </div>
    )
-@@ -235,6 +247,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
+@@ -235,6 +259,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
    const label = row.workspaceId === undefined ? t('group.ungrouped') : row.label
    const active = containsCurrentDescendant || (group.expanded && group.containsCurrent)
    const [menuOpen, setMenuOpen] = useState(false)
@@ -89,7 +101,7 @@ index 216a6fc..2d4c669 100644
    const workspaceMenuItems = [
      { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
      { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true },
-@@ -257,13 +270,18 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
+@@ -257,13 +282,15 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
        onDragEnd={drag?.end}
      >
        <span className={clsx(css.slot, css.folder, active && css.folderActive)}>
@@ -103,14 +115,11 @@ index 216a6fc..2d4c669 100644
        </span>
        <span className={css.projectText}>
 -        <span className={css.title}>{label}</span>
-+        <span className={css.title}>
-+          {label}
-+          {mark?.machine !== undefined && <span className={css.machine}>@{mark.machine}</span>}
-+        </span>
++        <span className={css.title}>{rowTitle(label, mark)}</span>
        </span>
        <span className={css.rowActions}>
          {actions !== undefined && (
-@@ -317,6 +335,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
+@@ -317,6 +344,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
          label={row.label}
          cwd={row.cwd === undefined ? undefined : abbreviateHomePath(row.cwd, home)}
          createdAt={row.createdAt}

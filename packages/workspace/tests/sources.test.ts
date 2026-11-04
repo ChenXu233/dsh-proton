@@ -57,6 +57,24 @@ it('answers a directory description from the first source that claims it', () =>
   expect(sources.describe('/elsewhere')).toBeUndefined()
 })
 
+it('wakes the mark ledger on a source change and stops when the source leaves', () => {
+  const sources = new WorkspaceSources()
+  let wakes = 0
+  const offMarks = sources.onMarkChange(() => { wakes += 1 })
+  const offSource = sources.addSource(source('mesh', { subscribe: () => () => {} }))
+  const notify = (() => {
+    let fire = () => {}
+    sources.addSource(source('live', { subscribe: (listener) => { fire = listener; return () => {} } }))
+    return () => { fire() }
+  })()
+  notify()
+  expect(wakes).toBe(1)
+  offMarks()
+  notify()
+  expect(wakes).toBe(1)
+  offSource()
+})
+
 it('publishes source arrival and departure', () => {
   const sources = new WorkspaceSources()
   let changes = 0

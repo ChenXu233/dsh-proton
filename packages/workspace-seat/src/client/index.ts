@@ -36,7 +36,10 @@ export function apply(ctx: Context): void {
     const sources = scoped.get('protonWorkspace')
     if (sources === undefined) return
     scoped.effect(
-      () => installWorkspaceMarks(path => sources.describe(path)),
+      () => installWorkspaceMarks({
+        describe: path => sources.describe(path),
+        subscribe: listener => sources.onMarkChange(listener),
+      }),
       'seat: workspace marks',
     )
   })
