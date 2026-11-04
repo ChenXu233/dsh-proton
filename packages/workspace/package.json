@@ -1,6 +1,6 @@
 {
   "name": "dsh-proton-workspace",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "质子 · 工作区域：目录流的选择与接纳，来源由任意 backend 通过 ctx.protonWorkspace 注册",
   "type": "module",
   "license": "Apache-2.0",

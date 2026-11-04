@@ -1,6 +1,6 @@
 {
   "name": "dsh-proton-adapter-dsh",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "质子 · DSH 适配层：唯一知道官方 slot key 与 owner props 契约的包",
   "type": "module",
   "license": "Apache-2.0",

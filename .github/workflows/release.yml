@@ -1,0 +1,80 @@
+# 发布工作流：推送 v* tag 时把三个包发布到 npm。
+#
+# 需要一次性配置（二选一）：
+# 1. 经典方案：Settings → Secrets and variables → Actions 添加 NPM_TOKEN（Granular Access Token，勾 publish）。
+# 2. 推荐：包首次发布后，在 npmjs 上为每个包配置 Trusted Publisher（repository=本仓库，workflow=release.yml），
+#    之后可去掉 NODE_AUTH_TOKEN，改用 pnpm publish --provenance 走 OIDC。
+#
+# tag 必须与三个包的 version 一致（例如 v0.1.0），否则工作流在发布前失败。
+# 版本已经全部在 registry 上时，发布步骤自动跳过，因此重跑或「先本地发布、后补 tag」都不会变红。
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 测试
+        run: pnpm test
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 构建
+        run: pnpm build
+
+      - name: 校验 tag 与包版本一致
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          fail=0
+          for p in packages/*/package.json; do
+            v=$(node -p "require('./$p').version")
+            if [ "$v" != "$tag" ]; then
+              echo "::error file=$p::version $v 与 tag $tag 不一致"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: 检查是否已有同版本发布
+        id: registry
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          missing=0
+          for p in packages/*/package.json; do
+            name=$(node -p "require('./$p').name")
+            if npm view "$name@$tag" version >/dev/null 2>&1; then
+              echo "$name@$tag 已存在，跳过"
+            else
+              echo "$name@$tag 待发布"
+              missing=1
+            fi
+          done
+          echo "publish=$missing" >> "$GITHUB_OUTPUT"
+
+      - name: 发布到 npm
+        if: steps.registry.outputs.publish == '1'
+        run: pnpm -r publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
