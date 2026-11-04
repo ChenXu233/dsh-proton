@@ -16,9 +16,11 @@
 
 这个仓库是三个 DSH 客户端插件组成的 pnpm workspace，**不修改 DSH 上游，也不修改 dsh-workspace-mesh**：
 
-- `packages/core`（`dsh-proton`）——通用组合运行时：Region 注册表与 Host、接管官方 single slot 的 Outlet、把官方原 entry 请回来渲染的 `OriginalSlotEntry`。它不知道 mesh 的存在。
-- `packages/remote-workspace`（`dsh-proton-remote-workspace`）——只为 `workspace.directoryFlow` 注册一个 Decorator：选本机走 `next()` 回到官方流程，选远端渲染 mesh 列表并通过 `/api/mesh/anchor` 建锚点。
-- `packages/seat`（`dsh-proton-seat`）——只有 manifest 与 README 的占位包，目前没有任何源码。它单独成包的唯一理由是**可丢弃**：官方补齐后整包删除，而不是从包里挑函数删。
+- `packages/core`（`dsh-proton`）——通用组合运行时：Region 注册表与 Host、接管官方 single slot 的 Outlet、把官方原 entry 请回来渲染的 `OriginalSlotEntry`。它不知道工作区是什么。
+- `packages/adapter-dsh`（`dsh-proton-adapter-dsh`）——唯一知道官方 slot key 与官方 owner props 契约的一层：把两个 directory-flow 席位接到 `ctx.proton.connect()`，并转出 `DirectoryFlowContext`。
+- `packages/workspace`（`dsh-proton-workspace`）——工作区域：为 `workspace.directoryFlow` 注册 Decorator，选本机走 `next()`，选来源走 `ctx.protonWorkspace.addSource()`；不认识任何具体 backend。
+
+席位档不在本仓库：真要接管 `sidebar.workspaces` 时，另建 `dsh-proton-workspace-seat` 并由域包调用。不提前建空壳——空壳会诱使人往里凑内容。
 
 改架构前必须知道的物理事实：
 
@@ -78,7 +80,8 @@
 ```sh
 pnpm test && pnpm typecheck && pnpm build
 node --check packages/core/lib/client.js
-node --check packages/remote-workspace/lib/client.js
+node --check packages/adapter-dsh/lib/client.js
+node --check packages/workspace/lib/client.js
 ```
 
 这些判据只证明「能跑」，不是人工验收。真实窗口里的点击、焦点、HMR、卸载仍需人工确认；未确认就不许说「验收通过」。

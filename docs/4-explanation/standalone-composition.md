@@ -58,20 +58,22 @@ Outlet 采用接管时的 live winner 与接管后新注册的 entry；随后被
 | 远端 Promise 在取消或卸载后完成 | 对已关闭的流程调用 `onPicked` | active 标记 + ticket 守卫，晚到回调本地抑制 |
 | 注入缓存与 React state 只在 Proton 持有 Outlet 期间成立 | 接管与恢复边界会 remount 官方组件，其瞬时状态可能重置 | 作为已知限制接受：不承诺状态连续 |
 
-## Remote workspace
+## 工作区域
 
-remote workspace 只注册 `workspace.directoryFlow` Decorator，不再注册替代 Renderer：
+`dsh-proton-workspace` 只注册 `workspace.directoryFlow` Decorator，不注册替代 Renderer：
 
-- 初次打开显示「本机 / 远端」选择。
+- 初次打开显示「本机 / 已注册来源」选择。
 - 选本机 → 调用 `next()`，原生 OS picker 或官方 browse dialog 由原 entry 自己运行。
-- 选远端 → 不调 `next()`，Decorator 自己渲染 mesh 列表，并通过 `/api/mesh/anchor` 创建本地锚点。
+- 选来源 → 不调 `next()`，Decorator 渲染该来源给出的候选；选中后调 `source.adopt(id)` 换到本地路径，再交回官方 `onPicked(path)`。
 - 关闭、取消、错误与最终 `onPicked` 仍使用官方 owner conversation。
+
+来源由 backend 自己的适配包通过 `ctx.protonWorkspace.addSource()` 注册。本仓库不知道任何具体 backend，也不知道它会调哪些 HTTP —— 那是适配包与 backend 契约之间的事。
 
 ## 非目标
 
 - 不修改或 monkey patch 上游，不读 React internals，不搬 DOM。
 - 不自动支持所有官方 slot entry 形态（见「支持边界」）。
-- 不接管 `sidebar.workspaces`；那是 `dsh-proton-seat` 的事，而席位档在本 PoC 不构建、不挂载。
+- 不接管 `sidebar.workspaces`；真要接管时另建 `dsh-proton-workspace-seat` 并由域包调用，本仓库不提前建空壳。
 - 不修改 `dsh-workspace-mesh` 的 Host API，不实现 VS Code 布局。
 - 本地锚点不是远端挂载：agent loop 始终在归属机。
 - 不为 mesh 请求增加网络 abort（mesh API 改动超出范围）：晚到的 owner 回调在本地抑制。
@@ -85,7 +87,8 @@ pnpm test
 pnpm typecheck
 pnpm build
 node --check packages/core/lib/client.js
-node --check packages/remote-workspace/lib/client.js
+node --check packages/adapter-dsh/lib/client.js
+node --check packages/workspace/lib/client.js
 ```
 
 覆盖的行为：

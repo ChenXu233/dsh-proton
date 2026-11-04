@@ -3,8 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
-import { registerDirectoryFlowOutlets } from '../src/client/native'
+import { connectSlots } from '../src/client/slot'
 import { RegionRegistry } from '../src/client/region'
+
+declare module '../src/client/index' {
+  interface ProtonRegionMap {
+    'test.flow': { context: Record<string, unknown> }
+  }
+}
 
 it('renders the original winner beside Proton content and restores it on disposal', () => {
   const entries: StoredEntry[] = []
@@ -42,13 +48,16 @@ it('renders the original winner beside Proton content and restores it on disposa
     },
   } as unknown as Context
   const registry = new RegionRegistry()
-  const disposeOutlets = registerDirectoryFlowOutlets(ctx, registry)
+  const disposeOutlets = connectSlots(ctx, registry, [
+    { slot: 'demo.sidebar.flow', region: 'test.flow' },
+    { slot: 'demo.hero.flow', region: 'test.flow' },
+  ])
   expect(active.size).toBe(0)
-  const off = registry.registerContribution('workspace.directoryFlow', { id: 'mesh' }, () => (
+  const off = registry.registerContribution('test.flow', { id: 'demo' }, () => (
     createElement('b', null, 'contribution')
   ))
   expect(active.size).toBe(2)
-  const outlet = active.get('sidebar.workspaces.directoryFlow')!.component as (props: { open: boolean }) => ReturnType<typeof createElement>
+  const outlet = active.get('demo.sidebar.flow')!.component as (props: { open: boolean }) => ReturnType<typeof createElement>
   const html = renderToStaticMarkup(createElement(outlet, { open: true }))
   expect(html).toContain('original:native:true')
   expect(html).toContain('contribution')

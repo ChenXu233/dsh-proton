@@ -1,0 +1,60 @@
+{
+  "name": "dsh-proton-adapter-dsh",
+  "version": "0.0.0",
+  "description": "质子 · DSH 适配层：唯一知道官方 slot key 与 owner props 契约的包",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "lib/index.js",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./src/client/index.tsx",
+      "default": "./lib/client.js"
+    }
+  },
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.2.1-rc.5"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "dsh-proton",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "dependencies": {
+    "dsh-proton": "workspace:*"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.1-rc.5",
+    "vitest": "^4.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

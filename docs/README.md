@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | 学习 | `1-tutorial/` | 能跑起来的第一个东西 | 尚未建立 |
 | 任务 | `2-how-to/` | 完成一件具体的事 | [接入 DSH 联调与人工验收](2-how-to/integrate-with-dsh.md) |
-| 信息 | `3-reference/` | 查到的字段、参数、错误 | [Proton Region API](3-reference/region-api.md) · [mesh 端点](3-reference/mesh-bridge.md) |
+| 信息 | `3-reference/` | 查到的字段、参数、错误 | [Proton Region API](3-reference/region-api.md) |
 | 理解 | `4-explanation/` | 判断「为什么这样设计」 | [原 Slot Winner 共存](4-explanation/standalone-composition.md) |
 
 ## 建目录的触发条件

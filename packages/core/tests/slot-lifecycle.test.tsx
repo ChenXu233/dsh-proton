@@ -5,12 +5,18 @@ import { afterEach, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
-import { registerDirectoryFlowOutlets } from '../src/client/native'
+import { connectSlots } from '../src/client/slot'
 import { OriginalSlotEntry } from '../src/client/original'
 import { RegionRegistry } from '../src/client/region'
 
-const SIDEBAR = 'sidebar.workspaces.directoryFlow'
-const HERO = 'conversation.hero.workspace.directoryFlow'
+declare module '../src/client/index' {
+  interface ProtonRegionMap {
+    'test.flow': { context: Record<string, unknown> }
+  }
+}
+
+const SIDEBAR = 'demo.sidebar.flow'
+const HERO = 'demo.hero.flow'
 type RawRegister = (options: object, component: unknown) => () => void
 
 afterEach(() => cleanup())
@@ -59,10 +65,13 @@ it('follows live original entries without remount mistakes or abdicated fallback
     },
   } as unknown as Context
   const registry = new RegionRegistry()
-  const disposeOutlets = registerDirectoryFlowOutlets(ctx, registry)
+  const disposeOutlets = connectSlots(ctx, registry, [
+    { slot: SIDEBAR, region: 'test.flow' },
+    { slot: HERO, region: 'test.flow' },
+  ])
   let offContribution!: () => void
   await act(async () => {
-    offContribution = registry.registerContribution('workspace.directoryFlow', { id: 'mesh' }, () => <b>contribution</b>)
+    offContribution = registry.registerContribution('test.flow', { id: 'demo' }, () => <b>contribution</b>)
     await Promise.resolve()
   })
 

@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { DirectoryFlowContext } from 'dsh-proton/client'
-import type { MeshRemoteWorkspace, MeshWorkspaceBridge } from './bridge'
+import type { DirectoryFlowContext } from 'dsh-proton-adapter-dsh/client'
+import type { CollectedCandidate, WorkspaceSources } from './sources'
 
-export interface RemoteWorkspaceFlowProps {
+export interface WorkspaceFlowProps {
   context: DirectoryFlowContext
-  bridge: MeshWorkspaceBridge
+  sources: WorkspaceSources
   next: () => ReactNode
 }
 
 type FlowMode = 'choice' | 'local' | 'remote'
 
-/** Decorate the original directory flow with a mesh-remote branch. */
-export function RemoteWorkspaceFlow({ context, bridge, next }: RemoteWorkspaceFlowProps) {
+/** Decorate the shipped directory flow with every registered workspace source. */
+export function WorkspaceFlow({ context, sources, next }: WorkspaceFlowProps) {
   const [mode, setMode] = useState<FlowMode>('choice')
-  const [rows, setRows] = useState<MeshRemoteWorkspace[]>([])
+  const [rows, setRows] = useState<readonly CollectedCandidate[]>([])
+  const [failures, setFailures] = useState<readonly { sourceId: string; message: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState(false)
   const operation = useRef(0)
@@ -29,15 +30,20 @@ export function RemoteWorkspaceFlow({ context, bridge, next }: RemoteWorkspaceFl
     if (!context.open || mode !== 'remote') return
     let active = true
     setLoading(true)
-    void bridge.listRemoteWorkspaces().then(nextRows => {
-      if (active) setRows(nextRows)
+    void sources.collect().then(result => {
+      if (!active) return
+      setRows(result.rows)
+      setFailures(result.failures)
+      if (result.rows.length === 0 && result.failures.length > 0) {
+        latest.current.onError(result.failures.map(failure => failure.message).join('; '))
+      }
     }).catch(reason => {
       if (active) latest.current.onError(reason instanceof Error ? reason.message : String(reason))
     }).finally(() => {
       if (active) setLoading(false)
     })
     return () => { active = false }
-  }, [bridge, context.open, mode])
+  }, [context.open, mode, sources])
 
   useEffect(() => {
     if (context.open) return
@@ -45,6 +51,8 @@ export function RemoteWorkspaceFlow({ context, bridge, next }: RemoteWorkspaceFl
     pendingRef.current = false
     setPending(false)
     setMode('choice')
+    setRows([])
+    setFailures([])
   }, [context.open])
 
   useEffect(() => () => {
@@ -125,30 +133,39 @@ export function RemoteWorkspaceFlow({ context, bridge, next }: RemoteWorkspaceFl
     }
   }
 
-  return <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="proton-mesh-title"
+  return <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="proton-workspace-title"
     style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.38)' }}>
     <section style={{ width: 'min(560px, calc(100vw - 32px))', maxHeight: '80vh', overflow: 'auto', padding: 24,
       borderRadius: 16, background: 'var(--dsh-bg-base, #171717)', color: 'var(--dsh-text-primary, #eee)',
       boxShadow: '0 24px 80px rgba(0,0,0,.35)' }}>
-      <h2 id="proton-mesh-title">添加工作区</h2>
+      <h2 id="proton-workspace-title">添加工作区</h2>
       {mode === 'choice' ? <>
-        <p>使用原来的本机目录流程，或把 mesh 中的远端工作区登记为一个本地锚点。</p>
+        <p>使用原来的本机目录流程，或登记一个由已注册来源提供的工作区。</p>
         <button type="button" disabled={context.busy} onClick={() => { setMode('local') }}>选择本机目录…</button>
         <button type="button" disabled={context.busy} onClick={() => { setMode('remote') }}>选择远端工作区…</button>
       </> : <>
-        <p>远端执行仍由归属机负责；这里只创建原生 Workspace 使用的本地锚点。</p>
-        <h3>Remote workspaces</h3>
-        {loading ? <p role="status">正在读取 mesh 工作区…</p> : null}
-        {!loading && rows.length === 0 ? <p>没有可登记的远端工作区。请先配置 mesh peers 与 assignment。</p> : null}
+        <p>登记只创建本地锚点；执行归属由提供该工作区的来源负责。</p>
+        <h3>来源</h3>
+        {loading ? <p role="status">正在读取工作区来源…</p> : null}
+        {!loading && rows.length === 0 && failures.length === 0
+          ? <p>没有已注册的工作区来源。</p>
+          : null}
         <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 8 }}>
-          {rows.map(row => <li key={`${row.nodeId}/${row.workspaceId}`}>
-            <button type="button" disabled={busy} onClick={() => { void runChoice(async () => (await bridge.prepareAnchor(row)).path) }}
+          {rows.map(row => <li key={`${row.sourceId}/${row.candidate.id}`}>
+            <button type="button" disabled={busy}
+              onClick={() => { void runChoice(async () => (await sources.adopt(row.sourceId, row.candidate.id)).path) }}
               style={{ width: '100%', textAlign: 'left', padding: 12 }}>
-              <strong>{row.title} @{row.nodeLabel}</strong>
-              <span style={{ display: 'block', opacity: .7 }}>{row.remotePath} · {row.status}</span>
+              <strong>{row.candidate.title}</strong>
+              <span style={{ display: 'block', opacity: .7 }}>
+                {row.candidate.detail === undefined ? row.sourceLabel : `${row.candidate.detail} · ${row.sourceLabel}`}
+                {row.candidate.status === 'online' ? '' : ` · ${row.candidate.status}`}
+              </span>
             </button>
           </li>)}
         </ul>
+        {failures.map(failure => <p key={failure.sourceId} role="alert" style={{ opacity: .8 }}>
+          {failure.sourceId}: {failure.message}
+        </p>)}
       </>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
         <button type="button" disabled={context.busy} onClick={close}>取消</button>

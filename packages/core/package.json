@@ -1,27 +1,41 @@
 {
   "name": "dsh-proton",
   "version": "0.0.0",
-  "description": "质子 —— DSH 的通用 Region / Renderer / Decorator 运行时",
+  "description": "质子 —— DSH 的通用 Region / Renderer / Decorator 运行时（不含任何产品域语义）",
   "type": "module",
   "license": "Apache-2.0",
   "main": "lib/index.js",
   "types": "src/index.ts",
   "exports": {
-    ".": { "types": "./src/index.ts", "default": "./lib/index.js" },
-    "./client": { "types": "./src/client/index.ts", "default": "./lib/client.js" }
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./lib/client.js"
+    }
   },
-  "files": ["lib", "src", "cordis.patch.yml", "README.md"],
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
-    "engines": { "dsh": ">=0.2.1-rc.5" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.2.1-rc.5"
+    },
     "client": {
-      "platform": "web",
-      "inject": ["@deepseek-ai/dsh-client-ui-workspace"]
+      "platform": "web"
     }
   },
   "peerDependencies": {
@@ -30,12 +44,13 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-workspace": "0.2.1-rc.5",
     "@testing-library/react": "^16.3.0",
     "jsdom": "^27.0.0",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

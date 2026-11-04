@@ -1,7 +1,7 @@
 > **状态**：步骤已实施；真实窗口的人工验收未做
 > **日期**：2026-11-04
 > **读者**：要把这个 PoC 挂进 DSH 的人
-> **上游材料**：[设计](../4-explanation/standalone-composition.md) · [Region API](../3-reference/region-api.md) · [mesh 端点](../3-reference/mesh-bridge.md)
+> **上游材料**：[设计](../4-explanation/standalone-composition.md) · [Region API](../3-reference/region-api.md)
 
 # 接入 DSH 联调与人工验收
 
@@ -22,7 +22,8 @@ pnpm test
 pnpm typecheck
 pnpm build
 node --check packages/core/lib/client.js
-node --check packages/remote-workspace/lib/client.js
+node --check packages/adapter-dsh/lib/client.js
+node --check packages/workspace/lib/client.js
 ```
 
 ## 挂载
@@ -30,9 +31,8 @@ node --check packages/remote-workspace/lib/client.js
 本仓库的 `cordis.patch.yml` 故意为空：挂载权归部署者的 profile patch，Entry 因此唯一且属 profile 所有。在**同一个** DSH profile 中挂载：
 
 - `dsh-proton`（核心运行时）
-- `dsh-proton-remote-workspace`（依赖核心，选择远端时用到）
-
-`dsh-proton-seat` 不参与本 PoC：它没有源码、不构建，不要挂载。
+- `dsh-proton-adapter-dsh`（把官方 directory-flow 席位接到核心）
+- `dsh-proton-workspace`（工作区域；远端来源由 backend 侧的适配包注册，例如 `dsh-workspace-mesh` 的浏览器半区）
 
 ## 人工验收
 
