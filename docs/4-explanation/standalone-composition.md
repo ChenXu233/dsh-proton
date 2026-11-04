@@ -14,8 +14,11 @@
 
 ## 目标结构
 
-```text
-官方 single slot → Proton Outlet → Decorator(s) → next() → 原官方 Renderer + Proton Contribution(s)
+```mermaid
+flowchart LR
+    slot["官方 single slot"] --> outlet["Proton Outlet"]
+    outlet --> dec["Decorator"]
+    dec -->|next()| body["原官方 Renderer<br/>+ Proton Contribution(s)"]
 ```
 
 ## 核心方案

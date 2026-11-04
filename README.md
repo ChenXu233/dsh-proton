@@ -12,14 +12,16 @@ DSH 的 UI 组合层。它在官方已有的 UI 位置上叠加自己的内容�
 
 ## 依赖方向
 
-```text
-backend 的来源适配包
-        │ addSource()
-dsh-proton-workspace      工作区域：目录流的「本机 / 已注册来源」
-        │ registerDecorator()
-dsh-proton-adapter-dsh    官方 slot key 与 owner props 契约
-        │ ctx.proton.connect()
-dsh-proton                组合机制
+```mermaid
+flowchart TD
+    src["来源适配包<br/>由各 backend 自己发布"]
+    ws["dsh-proton-workspace<br/>工作区域"]
+    ad["dsh-proton-adapter-dsh<br/>官方 slot 与 owner 契约"]
+    core["dsh-proton<br/>组合机制"]
+    src -->|addSource| ws
+    ws -->|Region 契约| ad
+    ws -->|registerDecorator| core
+    ad -->|connect| core
 ```
 
 依赖只朝下。上层依赖下层，下层不反向引用。
