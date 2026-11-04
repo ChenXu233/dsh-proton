@@ -1,12 +1,13 @@
 # 发布工作流：推送 v* tag 时把三个包发布到 npm。
 #
-# 需要一次性配置（二选一）：
-# 1. 经典方案：Settings → Secrets and variables → Actions 添加 NPM_TOKEN（Granular Access Token，勾 publish）。
-# 2. 推荐：包首次发布后，在 npmjs 上为每个包配置 Trusted Publisher（repository=本仓库，workflow=release.yml），
-#    之后可去掉 NODE_AUTH_TOKEN，改用 pnpm publish --provenance 走 OIDC。
+# 一次性配置（二选一）：
+# 1. 经典方案：Settings → Secrets → NPM_TOKEN（Granular Access Token，勾 publish，勾 Bypass 2FA）。
+# 2. 推荐：包发布后，在 npmjs 为每个包配置 Trusted Publisher（repository=本仓库，workflow=release.yml），
+#    之后删掉 NODE_AUTH_TOKEN，改用 pnpm publish --provenance 走 OIDC。
 #
 # tag 必须与三个包的 version 一致（例如 v0.1.0），否则工作流在发布前失败。
-# 版本已经全部在 registry 上时，发布步骤自动跳过，因此重跑或「先本地发布、后补 tag」都不会变红。
+# 发布按「依赖顺序逐包」进行，registry 上已存在的版本单独跳过——因此重跑、
+# 或某个包先发/后发造成的部分发布状态，都不会让整批失败。
 
 name: release
 
@@ -57,24 +58,18 @@ jobs:
           done
           exit $fail
 
-      - name: 检查是否已有同版本发布
-        id: registry
+      - name: 按依赖顺序发布（已存在的版本跳过）
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          missing=0
-          for p in packages/*/package.json; do
-            name=$(node -p "require('./$p').name")
+          # 依赖顺序：core → adapter-dsh → workspace。新增包时按拓扑顺序补进这个列表。
+          for dir in packages/core packages/adapter-dsh packages/workspace; do
+            name=$(node -p "require('./$dir/package.json').name")
             if npm view "$name@$tag" version >/dev/null 2>&1; then
               echo "$name@$tag 已存在，跳过"
             else
-              echo "$name@$tag 待发布"
-              missing=1
+              echo "发布 $name@$tag"
+              (cd "$dir" && pnpm publish --access public --no-git-checks)
             fi
           done
-          echo "publish=$missing" >> "$GITHUB_OUTPUT"
-
-      - name: 发布到 npm
-        if: steps.registry.outputs.publish == '1'
-        run: pnpm -r publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
