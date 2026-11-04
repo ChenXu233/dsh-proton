@@ -5,7 +5,7 @@
 | 象限 | 目录 | 读完得到 | 当前内容 |
 | --- | --- | --- | --- |
 | 学习 | `1-tutorial/` | 能跑起来的第一个东西 | 尚未建立 |
-| 任务 | `2-how-to/` | 完成一件具体的事 | [接入 DSH 联调与人工验收](2-how-to/integrate-with-dsh.md) |
+| 任务 | `2-how-to/` | 完成一件具体的事 | [接入 DSH 联调与人工验收](2-how-to/integrate-with-dsh.md) · [给一个 UI 位置提供接入点](2-how-to/expose-a-ui-position.md) |
 | 信息 | `3-reference/` | 查到的字段、参数、错误 | [Proton Region API](3-reference/region-api.md) |
 | 理解 | `4-explanation/` | 判断「为什么这样设计」 | [原 Slot Winner 共存](4-explanation/standalone-composition.md) |
 
@@ -14,7 +14,7 @@
 不提前建空目录。出现对应内容时才建：
 
 - `1-tutorial/`：有人要从零写一个下游插件、需要可照抄的最小例子。
-- `2-how-to/`：出现第二篇「完成某件具体事」的步骤文档（`integrate-with-dsh.md` 之外）。
+- `2-how-to/`：出现新的「完成某件具体事」的步骤文档时。
 - `3-reference/`：新增对外可查的字段、枚举或错误码时，优先扩进现有 reference 文档；主题确实不同再拆文件。
 - `4-explanation/`：出现第二个需要解释的设计决策时。
 
