@@ -33,19 +33,27 @@
 | 事实 | 唯一的家 |
 | --- | --- |
 | 依赖版本、DSH 引擎基线、构建脚本 | 各级 `package.json`（文档只写包名与用途） |
-| 结构、支持边界、已知锐边、非目标、验收判据 | `docs/design/standalone-composition.md` |
+| 结构、支持边界、已知锐边、非目标、验收判据 | `docs/4-explanation/standalone-composition.md` |
+| Region、OriginalSlotEntry、mesh 端点的字段与错误 | `docs/3-reference/` |
+| 联调步骤、人工验收清单、排错 | `docs/2-how-to/integrate-with-dsh.md` |
 | 验证命令 | `README.md`「快速开始」 |
 | 包职责 | `README.md` 包表 + 各包 `README.md` |
+| 文档导航、象限归属、建目录触发条件 | `docs/README.md` |
 | 仓库规则、偏差裁决 | 本文件 |
-| 文档导航 | `README.md`「文档」一节 |
 
-`docs/superpowers/{specs,plans}/` 是 superpowers 工作流的**进行中**产物目录。任务落地后，把仍然成立的内容折进 `docs/design/`，原件删除，不留归档。
+## 文档分层
+
+`docs/` 按读者产出分象限：`1-tutorial/`（学习）、`2-how-to/`（任务）、`3-reference/`（信息）、`4-explanation/`（理解）。写新内容前先判断象限，再问能否折进该象限已有的文档——默认答案是折进去。
+
+没有内容的象限不建目录；建目录的触发条件只写在 `docs/README.md`，不在这里重复。
+
+`docs/superpowers/{specs,plans}/` 是 superpowers 工作流的**进行中**产物目录。任务落地后，把仍然成立的内容按象限折进 `docs/`，原件删除，不留归档。
 
 ## 代码与文档不一致时
 
-两者回答不同问题，没有谁天然优先：代码回答「现在怎么跑」，`docs/design/` 回答「当时决定了要什么」。
+两者回答不同问题，没有谁天然优先：代码回答「现在怎么跑」，`docs/4-explanation/` 回答「当时决定了要什么」。
 
-- 实现是对的、意图已经变了 → 改 `docs/design/`。
+- 实现是对的、意图已经变了 → 改 `docs/4-explanation/`。
 - 文档是对的、代码跑偏了 → 改代码。
 - 判断不了就停下来问；不要默认任何一方为准，也不要把偏差写成「勘误」段落。
 
@@ -61,9 +69,9 @@
 
 ## 维护
 
-- 改代码后按下表同步：新端点/字段/边界 → `docs/design/`；新命令 → README 快速开始；新包 → README 包表 + 该包 README。
+- 改代码后按下表同步：边界与设计变化 → `docs/4-explanation/`；端点/字段/错误码 → `docs/3-reference/`；新命令 → README 快速开始；新包 → README 包表 + 该包 README。
 - 删文档前：① 写清独有内容折进了哪份文档的哪一节；② 确认没有别的文档链接它。
-- 文档过期直接删，不归档；但仓库尚无首个 commit 时，删除会真的丢内容，先用快照兜底。
+- 文档过期直接删，不归档（历史由 git 承担）。
 
 ## 判据
 

@@ -1,0 +1,60 @@
+> **状态**：步骤已实施；真实窗口的人工验收未做
+> **日期**：2026-11-04
+> **读者**：要把这个 PoC 挂进 DSH 的人
+> **上游材料**：[设计](../4-explanation/standalone-composition.md) · [Region API](../3-reference/region-api.md) · [mesh 端点](../3-reference/mesh-bridge.md)
+
+# 接入 DSH 联调与人工验收
+
+## 前置
+
+1. Node ≥ 20 与 pnpm。
+2. 类型基线与 `packages/*/package.json` 里的 `dsh.engines.dsh` 一致（文档不重复版本号）。
+3. 已安装并挂载包含 `/api/mesh/anchor` 的 `dsh-workspace-mesh`。
+4. mesh peers 与 assignment 已配置，使 `GET /api/mesh/state` 能看到远端工作区。
+
+## 构建
+
+在仓库根执行：
+
+```sh
+pnpm install
+pnpm test
+pnpm typecheck
+pnpm build
+node --check packages/core/lib/client.js
+node --check packages/remote-workspace/lib/client.js
+```
+
+## 挂载
+
+本仓库的 `cordis.patch.yml` 故意为空：挂载权归部署者的 profile patch，Entry 因此唯一且属 profile 所有。在**同一个** DSH profile 中挂载：
+
+- `dsh-proton`（核心运行时）
+- `dsh-proton-remote-workspace`（依赖核心，选择远端时用到）
+
+`dsh-proton-seat` 不参与本 PoC：它没有源码、不构建，不要挂载。
+
+## 人工验收
+
+单测只覆盖 React 层组合，下面这些必须在真实窗口里逐条确认。**未确认前不得声称验收通过**：
+
+- 打开目录流先出现「本机 / 远端」选择，原生目录对话框没有抢先弹出。
+- 选本机：原生 OS picker 或官方 browse dialog 正常出现并可用，选中后 `onPicked` 收到路径。
+- 选远端：列表来自 mesh state，含节点标签与工作区标题；选中后创建锚点并进入会话。
+- 取消与关闭：不留下悬挂状态；重复点击被单操作守卫挡住。
+- 焦点：对话框可获得焦点，Tab 顺序正常；Esc 关闭后焦点回到触发元素。
+- HMR：改 Decorator 后热更新不重复注册，不出现两个对话框。
+- 卸载：撤掉 Proton 后官方目录流恢复原样，不需要重启。
+
+## 排错
+
+| 现象 | 先查 |
+| --- | --- |
+| 抛 `Proton 暂不支持原 slot entry 的 X` | 被接管的 entry 超出支持边界，见设计文档「支持边界」 |
+| 远端列表为空 | `/api/mesh/state` 是否返回 peers.workspaces；mesh 是否已挂载 |
+| 选本机没反应 | Decorator 是否真的调用了 `next()` |
+| 官方流程被抢走 | 初次打开是否提前调用了 `next()` |
+
+## 未覆盖
+
+- mesh 列表与锚点 Promise 的晚到拒绝路径，缺针对性测试；现有 active/ticket 守卫未变。

@@ -35,26 +35,23 @@ node --check packages/core/lib/client.js
 node --check packages/remote-workspace/lib/client.js
 ```
 
-## 联调前置
+## 联调
 
-1. 类型基线以 `packages/*/package.json` 的 `dsh.engines.dsh` 为准，文档不重复版本号。
-2. 安装并挂载包含 `/api/mesh/anchor` 的 dsh-workspace-mesh。
-3. 配置 mesh peers 与 assignment，使 `/api/mesh/state` 能看到远端工作区。
-4. 在同一个 DSH profile 中挂载 `dsh-proton` 与 `dsh-proton-remote-workspace`。
+前置条件、构建与挂载步骤、人工验收清单见[接入 DSH 联调](docs/2-how-to/integrate-with-dsh.md)。
 
 ## 文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [docs/design/standalone-composition.md](docs/design/standalone-composition.md) | 结构、支持边界、已知锐边、非目标、验收判据的唯一出处 |
-| [packages/core/README.md](packages/core/README.md) | 核心包提供什么 |
-| [packages/remote-workspace/README.md](packages/remote-workspace/README.md) | mesh Decorator 做什么、不做什么 |
-| [packages/seat/README.md](packages/seat/README.md) | 席位档为什么单独成包 |
-| [AGENTS.md](AGENTS.md) | 给 agent 的仓库规则、事实归属与偏差裁决 |
-
-暂不建的目录：需要查字段/端点/错误码时建 `docs/reference/`；需要逐步操作手册时建 `docs/how-to/`。没有内容的象限不提前建空壳。
+| [docs/README.md](docs/README.md) | 文档导航：四个象限与建目录的触发条件 |
+| [docs/4-explanation/standalone-composition.md](docs/4-explanation/standalone-composition.md) | 结构、支持边界、已知锐边、非目标、验收判据的唯一出处 |
+| [docs/3-reference/region-api.md](docs/3-reference/region-api.md) | Region、注册 API、OriginalSlotEntry 的字段与错误 |
+| [docs/3-reference/mesh-bridge.md](docs/3-reference/mesh-bridge.md) | 本仓库消费的 mesh 端点与错误口径 |
+| [docs/2-how-to/integrate-with-dsh.md](docs/2-how-to/integrate-with-dsh.md) | 联调前置、挂载、人工验收清单、排错 |
+| [AGENTS.md](AGENTS.md) | agent 规则、事实归属与偏差裁决 |
+| 包 README | [core](packages/core/README.md) · [remote-workspace](packages/remote-workspace/README.md) · [seat](packages/seat/README.md) |
 
 ## 未核实
 
-- 真实窗口中的点击、焦点、HMR 与卸载：缺运行中 DSH 的人工验收。单测只覆盖 React 层组合，不覆盖浏览器行为。
+- 真实窗口中的点击、焦点、HMR 与卸载：缺运行中 DSH 的人工验收，清单见[接入 DSH 联调](docs/2-how-to/integrate-with-dsh.md)的「人工验收」一节。单测只覆盖 React 层组合，不覆盖浏览器行为。
 - mesh 列表与锚点 Promise 的晚到拒绝路径：缺针对性测试；现有 active/ticket 守卫未变。
