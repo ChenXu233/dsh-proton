@@ -1,0 +1,7 @@
+node_modules/
+.superpowers/
+lib/
+lib-test/
+dist/
+*.local.md
+.DS_Store

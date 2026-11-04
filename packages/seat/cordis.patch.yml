@@ -1,0 +1,5 @@
+# proton-seat bundle layer.
+# Intentionally empty: the plugin is mounted from the DEPLOYER's profile patch
+# (- id: proton-seat / name: proton-seat), which makes the entry uniquely addressed and
+# profile-owned.
+[]
