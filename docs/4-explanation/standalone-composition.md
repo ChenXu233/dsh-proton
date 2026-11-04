@@ -18,7 +18,7 @@
 flowchart LR
     slot["官方 single slot"] --> outlet["Proton Outlet"]
     outlet --> dec["Decorator"]
-    dec -->|next()| body["原官方 Renderer<br/>+ Proton Contribution(s)"]
+    dec -->|"next()"| body["原官方 Renderer<br/>+ Proton Contribution(s)"]
 ```
 
 ## 核心方案
