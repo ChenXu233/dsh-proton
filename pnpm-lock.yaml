@@ -188,6 +188,9 @@ importers:
       clsx:
         specifier: ^2.0.0
         version: 2.1.1
+      dsh-proton-workspace:
+        specifier: workspace:*
+        version: link:../workspace
       lightningcss:
         specifier: ^1.33.0
         version: 1.33.0

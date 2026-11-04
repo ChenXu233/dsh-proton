@@ -39,6 +39,24 @@ it('adopts through the source that offered the candidate', async () => {
   await expect(sources.adopt('missing', 'w1')).rejects.toThrow(/unknown workspace source/)
 })
 
+it('answers a directory description from the first source that claims it', () => {
+  const sources = new WorkspaceSources()
+  sources.addSource(source('silent'))
+  sources.addSource(source('mesh', {
+    describe: path => (path.startsWith('/anchor/mesh/')
+      ? { machine: 'aliyun', remotePath: '/data/workspace' }
+      : undefined),
+  }))
+  expect(sources.describe('/anchor/mesh/w1')).toEqual({
+    machine: 'aliyun',
+    remotePath: '/data/workspace',
+    sourceId: 'mesh',
+    sourceLabel: 'label-mesh',
+  })
+  expect(sources.describe('/anchor/silent/w1')).toBeUndefined()
+  expect(sources.describe('/elsewhere')).toBeUndefined()
+})
+
 it('publishes source arrival and departure', () => {
   const sources = new WorkspaceSources()
   let changes = 0

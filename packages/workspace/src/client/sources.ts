@@ -7,6 +7,19 @@ export interface SourceCandidate {
 }
 
 /**
+ * What a source can say about one directory it produced. A source that
+ * materializes a stand-in directory (a mount point, a bookmark, an anchor for
+ * a machine it reaches itself) knows where the real workspace lives; a source
+ * that hands out real local paths simply has nothing to add.
+ */
+export interface SourceMark {
+  /** Machine the directory actually lives on; absent when it is this machine. */
+  readonly machine?: string
+  /** Path on that machine; absent when the local directory is the real path. */
+  readonly remotePath?: string
+}
+
+/**
  * A backend that can offer workspaces and turn one of them into a local
  * directory the shipped directory flow can adopt. The domain never learns how
  * the backend reaches its machines; SSH, an HTTP mesh, or a fixed list are all
@@ -20,6 +33,12 @@ export interface WorkspaceSource {
   list(): Promise<readonly SourceCandidate[]>
   /** Materialize one candidate as an absolute local directory path. */
   adopt(id: string): Promise<{ path: string }>
+  /**
+   * Recognize one directory this source produced and describe where the
+   * workspace really lives. Synchronous on purpose: a browser row asks this
+   * while rendering, so the answer comes from state the source already holds.
+   */
+  describe?(path: string): SourceMark | undefined
 }
 
 /** One collected row, paired with the source that offered it. */
@@ -68,6 +87,19 @@ export class WorkspaceSources {
 
   list(): readonly WorkspaceSource[] {
     return [...this.sources.values()]
+  }
+
+  /**
+   * The first source that recognizes `path`, with the mark it reports.
+   * Registration order decides; two sources claiming one directory is a
+   * composition bug rather than something to merge.
+   */
+  describe(path: string): (SourceMark & { sourceId: string; sourceLabel: string }) | undefined {
+    for (const source of this.sources.values()) {
+      const mark = source.describe?.(path)
+      if (mark !== undefined) return { ...mark, sourceId: source.id, sourceLabel: source.label }
+    }
+    return undefined
   }
 
   /** Collect every source's candidates; one failing source never hides the others. */
