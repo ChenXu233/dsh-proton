@@ -55,3 +55,7 @@ node --check packages/remote-workspace/lib/client.js
 
 - 真实窗口中的点击、焦点、HMR 与卸载：缺运行中 DSH 的人工验收，清单见[接入 DSH 联调](docs/2-how-to/integrate-with-dsh.md)的「人工验收」一节。单测只覆盖 React 层组合，不覆盖浏览器行为。
 - mesh 列表与锚点 Promise 的晚到拒绝路径：缺针对性测试；现有 active/ticket 守卫未变。
+
+## 许可证
+
+Apache-2.0，全文见 [LICENSE](LICENSE)。
