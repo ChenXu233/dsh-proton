@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { RegionRegistry } from './region'
 import { connectSlots } from './slot'
 import type { SlotOutlet } from './slot'
+import { EntryFace } from './entry'
+import type { EntryKitSources } from './entry'
 
 export * from './region'
 export * from './original'
@@ -33,6 +35,20 @@ export class ProtonRegistry extends RegionRegistry {
   /** Wrap the official winners of `outlets` while their regions have content. */
   connect<K extends RegionName>(outlets: readonly SlotOutlet<K>[]): () => void {
     return connectSlots(this.host, this, outlets)
+  }
+
+  /**
+   * Render one stored slot entry the way the host renderer would.
+   *
+   * Exposed as a service method rather than an import: this package's client
+   * half ships as a browser bundle, so another package cannot import it at build
+   * time — it can only call the service at runtime.
+   * @param entry - the entry to render.
+   * @param sources - standard props, translator, and store resolver.
+   * @returns the rendered node.
+   */
+  entryFace(entry: Parameters<typeof EntryFace>[0]['entry'], sources: EntryKitSources = {}): ReactNode {
+    return EntryFace({ ctx: this.host, entry, sources })
   }
 }
 
