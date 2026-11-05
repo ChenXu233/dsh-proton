@@ -18,9 +18,9 @@
 
 - `packages/core`（`dsh-proton`）——通用组合运行时：Region 注册表与 Host、接管官方 single slot 的 Outlet、把官方原 entry 请回来渲染的 `OriginalSlotEntry`。它不知道工作区是什么。
 - `packages/adapter-dsh`（`dsh-proton-adapter-dsh`）——唯一知道官方 slot key 与官方 owner props 契约的一层：把两个 directory-flow 席位接到 `ctx.proton.connect()`，并转出 `DirectoryFlowContext`。
-- `packages/workspace`（`dsh-proton-workspace`）——工作区域：为 `workspace.directoryFlow` 注册 Decorator，选本机走 `next()`，选来源走 `ctx.protonWorkspace.addSource()`；不认识任何具体 backend。
+- `packages/workspace`（`dsh-proton-workspace`）——工作区域：接管 `sidebar.workspaces`（`workspace.list` 区域），把原生列表当作一段贡献参与排序，section 可声明 `replacesNative` 整块顶掉；同时为 `workspace.directoryFlow` 注册 Decorator，选来源走 `ctx.protonWorkspace.addSource()`。不认识任何具体 backend。
 
-席位档不在本仓库：真要接管 `sidebar.workspaces` 时，另建 `dsh-proton-workspace-seat` 并由域包调用。不提前建空壳——空壳会诱使人往里凑内容。
+**自带列表渲染的包不在本仓库。** 本仓库只提供 section 接缝（`addSection`）；需要自己画整份列表的实现另建，现为 `dsh-workspace-mesh` 仓库的 `packages/workspace-remote-mesh`。不提前建空壳——空壳会诱使人往里凑内容。
 
 改架构前必须知道的物理事实：
 

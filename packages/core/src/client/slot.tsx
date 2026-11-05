@@ -61,7 +61,11 @@ export function connectSlots<K extends RegionName>(
     let dispose: (() => void) | undefined
     const sync = (): void => {
       const occupied = registry.snapshot(region).occupied
-      if (occupied && dispose === undefined) {
+      // An occupant can only shadow something that exists: registering before the
+      // shipped entry does would take the single seat and leave that entry unable
+      // to register at all, so the outlet would have no original to render.
+      const shipped = slots.entriesOfSlot(slot).some(entry => entry.component !== undefined)
+      if (occupied && dispose === undefined && shipped) {
         const Outlet = (owner: Record<string, unknown>): ReactNode => {
           useSyncExternalStore(
             listener => slots.subscribe(slot, listener),
@@ -79,6 +83,11 @@ export function connectSlots<K extends RegionName>(
               original = entry
               break
             }
+          }
+          // TEMPORARY DIAGNOSTIC
+          if (original === undefined) {
+            const sink = ((globalThis as unknown as Record<string, unknown[]>).__protonDiag ??= [])
+            sink.push({ slot, entries: slots.entries(slot).length, winners: slots.entriesOfSlot(slot).length, occupied: registry.snapshot(region as never).occupied })
           }
           return (
             <RegionHost

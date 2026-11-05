@@ -8,3 +8,4 @@ dist/
 .vendor-tmp/
 .pack/
 .tmp-*
+.pack*
