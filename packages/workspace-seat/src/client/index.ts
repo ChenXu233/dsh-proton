@@ -26,21 +26,42 @@ export const inject = browserInject
 
 /**
  * Run the upstream apply, then wire the row decoration to the source ledger.
- * The ledger is optional: without `protonWorkspace` the region still renders,
- * and every row shows as a plain local workspace.
  * @param ctx - client root context.
  */
 export function apply(ctx: Context): void {
   applyBrowser(ctx)
+  // Decoration is optional; the region is not. Anything that goes wrong while
+  // wiring it must leave the browser rendered rather than fail this entry —
+  // an exception here takes the whole workspace region down with it.
+  try {
+    decorate(ctx)
+  } catch (error) {
+    console.warn('[seat] workspace marks are unavailable:', error)
+  }
+}
+
+/**
+ * Wire the row decoration to the source ledger.
+ * @param ctx - client root context.
+ */
+function decorate(ctx: Context): void {
   ctx.inject(['protonWorkspace'], (scoped) => {
-    const sources = scoped.get('protonWorkspace')
+    const sources = scoped.protonWorkspace
     if (sources === undefined) return
+    // The ledger is a capability, not an obligation: a client half older than
+    // this package leaves the region rendering and every row unmarked.
+    const describe = sources.describe
+    if (typeof describe !== 'function') return
+    const onMarkChange = sources.onMarkChange
     scoped.effect(
       () => installWorkspaceMarks({
-        describe: path => sources.describe(path),
-        subscribe: listener => sources.onMarkChange(listener),
+        describe: path => describe.call(sources, path),
+        subscribe: typeof onMarkChange === 'function'
+          ? listener => onMarkChange.call(sources, listener)
+          : () => () => {},
       }),
       'seat: workspace marks',
     )
   })
 }
+

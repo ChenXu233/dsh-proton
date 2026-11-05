@@ -1,6 +1,6 @@
 {
   "name": "dsh-proton-workspace-seat",
-  "version": "0.0.0",
+  "version": "0.1.1",
   "description": "质子 · 工作区域席位档：接管 sidebar.workspaces，按来源区分图标与机器标签",
   "type": "module",
   "license": "MIT",
@@ -14,7 +14,8 @@
     "./client": {
       "types": "./src/client/index.ts",
       "default": "./lib/client.js"
-    }
+    },
+    "./locale/*.json": "./vendor/ui-workspace/locale/*.json"
   },
   "files": [
     "lib",
