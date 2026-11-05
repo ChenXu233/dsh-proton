@@ -53,12 +53,13 @@ export function apply(ctx: Context): void {
   ctx.effect(
     () => ctx.proton.connect([
       ...DIRECTORY_FLOW_SLOTS.map(slot => ({ slot, region: DIRECTORY_FLOW_REGION })),
-      // PARKED: the outlet takes this seat only once the shipped list is visible to
-      // it, and in this composition that never happens — `entries`/`entriesOfSlot`
-      // both stay empty for the seat while the shipped list renders. Until that is
-      // understood, taking the seat would blank the list. The entry face that can
-      // draw the shipped occupant is in place (ctx.proton.renderEntry).
-      // { slot: WORKSPACES_SLOT, region: WORKSPACES_REGION, children: WORKSPACES_CHILDREN,
+      // PARKED, with the rule now measured rather than guessed: a slot's winners are
+      // "the first live entry per cell, ordered by priority ascending" (dk-client-ui-
+      // slots elects on the sorted ledger). This outlet registers with priority -100
+      // and the ledger does list it first, yet the shell still draws the shipped
+      // occupant and never invokes the outlet component. Until that gap is explained,
+      // taking the seat blanks the region.
+      // { slot: WORKSPACES_SLOT, region: WORKSPACES_REGION,
       //   render: (entry, owner) => ctx.proton.renderEntry(entry, owner) },
     ]),
     'proton-adapter-dsh: workspace outlets',

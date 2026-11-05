@@ -139,6 +139,7 @@ export function SectionsHost({ registry, next }: {
 
   return (
     <>
+      <span data-sections-host={String(sections.length)} style={{ display: 'none' }} />
       {placements.map((placement) => (
         <SectionBoundary key={placement.key} label={placement.key}>
           {placement.title === undefined ? null : <div data-proton-section-title="">{placement.title}</div>}
