@@ -22,7 +22,11 @@ export interface WorkspaceSection {
    * list stays out.
    */
   readonly replacesNative?: boolean
-  render(): ReactNode
+  /**
+   * Draw the section. `native()` renders the shipped list, for a section that
+   * wants to keep it (own grouping, own chrome) instead of dropping it.
+   */
+  render(context: { native: () => ReactNode }): ReactNode
 }
 
 /** One row the host knows how to draw: a contribution plus its resolved slot. */
@@ -122,7 +126,7 @@ export function SectionsHost({ registry, next }: {
     order: section.order ?? NATIVE_SECTION_ORDER,
     index,
     title: section.title,
-    body: () => section.render(),
+    body: () => section.render({ native: renderNative }),
   }))
   if (!nativeClaimed) {
     placements.push({ key: 'section:@native', order: NATIVE_SECTION_ORDER, index: -1, title: undefined, body: renderNative })

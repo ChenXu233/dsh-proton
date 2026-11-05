@@ -59,8 +59,7 @@ export function connectSlots<K extends RegionName>(
       }
     })
     let dispose: (() => void) | undefined
-    const sync = (): void => {
-      const occupied = registry.snapshot(region).occupied
+    const sync = (): void => {      const occupied = registry.snapshot(region).occupied
       // An occupant can only shadow something that exists: registering before the
       // shipped entry does would take the single seat and leave that entry unable
       // to register at all, so the outlet would have no original to render.
@@ -84,11 +83,6 @@ export function connectSlots<K extends RegionName>(
               break
             }
           }
-          // TEMPORARY DIAGNOSTIC
-          if (original === undefined) {
-            const sink = ((globalThis as unknown as Record<string, unknown[]>).__protonDiag ??= [])
-            sink.push({ slot, entries: slots.entries(slot).length, winners: slots.entriesOfSlot(slot).length, occupied: registry.snapshot(region as never).occupied })
-          }
           return (
             <RegionHost
               registry={registry}
@@ -98,16 +92,28 @@ export function connectSlots<K extends RegionName>(
             />
           )
         }
-        dispose = slots.register(children === undefined ? { name: slot, priority } : { name: slot, priority, children }, Outlet)
+        try {
+          dispose = slots.register(children === undefined ? { name: slot, priority } : { name: slot, priority, children }, Outlet)
+        } catch (error) {
+          // The seat may already carry the shipped occupant's child declarations.
+          // Re-declaring them here is a conflict, and losing the whole outlet over
+          // it would leave the region blank; shadow the seat without the children.          dispose = slots.register({ name: slot, priority }, Outlet)
+        }
       } else if (!occupied && dispose !== undefined) {
         dispose()
         dispose = undefined
       }
     }
     sync()
+    // Two things decide whether the outlet should exist: the region gaining
+    // content, and the seat gaining an occupant worth shadowing. Watching only
+    // the region leaves the outlet unregistered whenever the shipped entry
+    // arrives after the decorator, which renders no shipped list at all.
     const unsubscribe = registry.subscribe(sync)
+    const stopSlot = slots.subscribe(slot, sync)
     return () => {
       unsubscribe()
+      stopSlot()
       stopError()
       dispose?.()
     }
