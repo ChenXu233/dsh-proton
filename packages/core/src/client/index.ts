@@ -4,6 +4,8 @@ import { RegionRegistry } from './region'
 import { connectSlots } from './slot'
 import type { SlotOutlet } from './slot'
 import { EntryFace } from './entry'
+import { OriginalSlotEntry } from './original'
+import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import type { EntryKitSources } from './entry'
 
 export * from './region'
@@ -47,9 +49,45 @@ export class ProtonRegistry extends RegionRegistry {
    * @param sources - standard props, translator, and store resolver.
    * @returns the rendered node.
    */
-  entryFace(entry: Parameters<typeof EntryFace>[0]['entry'], sources: EntryKitSources = {}): ReactNode {
+  entryFace(entry: StoredEntry, sources: EntryKitSources = {}): ReactNode {
     return EntryFace({ ctx: this.host, entry, sources })
   }
+
+  /**
+   * Register a source of kit props for entries a domain understands.
+   *
+   * The first provider that claims an entry draws it; one that returns undefined
+   * passes. With no provider, the shipped plain-shape renderer still applies, so
+   * a composition that contributes nothing behaves exactly as before.
+   * @param provider - claims an entry and returns its kit sources.
+   * @returns disposer.
+   */
+  addEntrySources(provider: (entry: StoredEntry) => EntryKitSources | undefined): () => void {
+    this.entryProviders.push(provider)
+    return () => {
+      const index = this.entryProviders.indexOf(provider)
+      if (index >= 0) this.entryProviders.splice(index, 1)
+    }
+  }
+
+  /**
+   * Draw a shadowed occupant: through a claiming provider's kit when there is
+   * one, otherwise through the plain-shape renderer that fails loudly on shapes
+   * it cannot support.
+   * @param entry - the shadowed entry.
+   * @param owner - owner props from the seat.
+   * @returns the rendered node.
+   */
+  renderEntry(entry: StoredEntry, owner: Record<string, unknown>): ReactNode {
+    for (const provider of this.entryProviders) {
+      const sources = provider(entry)
+      if (sources !== undefined) return this.entryFace(entry, { ...sources, owner })
+    }
+    return OriginalSlotEntry({ entry, owner })
+  }
+
+  /** Domains that know how to draw a particular entry. */
+  private readonly entryProviders: Array<(entry: StoredEntry) => EntryKitSources | undefined> = []
 }
 
 declare module '@deepseek-ai/cordis' {

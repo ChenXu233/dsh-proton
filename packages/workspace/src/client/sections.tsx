@@ -87,11 +87,11 @@ function SectionBody({ render }: { render: () => ReactNode }): ReactNode {
 }
 
 /** Catches one section's render failure so the rest of the list survives. */
-class SectionBoundary extends Component<{ label: string; children: ReactNode }, { failed: boolean }> {
-  override state = { failed: false }
+class SectionBoundary extends Component<{ label: string; children: ReactNode }, { message: string | null }> {
+  override state = { message: null as string | null }
 
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true }
+  static getDerivedStateFromError(error: unknown): { message: string } {
+    return { message: error instanceof Error ? error.message : String(error) }
   }
 
   override componentDidCatch(error: unknown): void {
@@ -99,7 +99,11 @@ class SectionBoundary extends Component<{ label: string; children: ReactNode }, 
   }
 
   override render(): ReactNode {
-    if (this.state.failed) return null
+    // A hidden failure looks exactly like a section that was never registered, and
+    // that ambiguity has cost real debugging time. Say it in the DOM instead.
+    if (this.state.message !== null) {
+      return <div data-section-error={this.state.message} style={{ padding: '4px 8px', fontSize: 12, color: 'var(--dsw-alias-state-warning-primary, #d97706)' }}>{this.state.message}</div>
+    }
     return this.props.children
   }
 }

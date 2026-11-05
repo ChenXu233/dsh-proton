@@ -22,6 +22,13 @@ export interface SlotOutlet<K extends RegionName> {
    * the children are declared here verbatim, still opaque to core.
    */
   children?: Record<string, unknown>
+  /**
+   * Draw the occupant this outlet shadowed. Omitted, the shipped entry is
+   * rendered as-is — which only supports the plain directory-flow shape.
+   * Provided, a caller that can assemble a richer kit (standard props, locale
+   * seat, store binding) draws it through the entry face instead.
+   */
+  render?: (entry: StoredEntry, owner: Record<string, unknown>) => ReactNode
 }
 
 /** The dynamic slice of `ctx.slots` this module needs; keys are runtime strings here. */
@@ -46,7 +53,7 @@ export function connectSlots<K extends RegionName>(
   outlets: readonly SlotOutlet<K>[],
 ): () => void {
   const slots = ctx.slots as unknown as RawSlots
-  const cleanups = outlets.map(({ slot, region, priority = -100, children }) => slots.inject(slot, () => {
+  const cleanups = outlets.map(({ slot, region, priority = -100, children, render }) => slots.inject(slot, () => {
     const seen = new WeakSet<StoredEntry>()
     const eligible = new WeakSet<StoredEntry>()
     const retired = new WeakSet<StoredEntry>()
@@ -59,11 +66,18 @@ export function connectSlots<K extends RegionName>(
       }
     })
     let dispose: (() => void) | undefined
-    const sync = (): void => {      const occupied = registry.snapshot(region).occupied
+    const sync = (): void => {
+      const occupied = registry.snapshot(region).occupied
       // An occupant can only shadow something that exists: registering before the
       // shipped entry does would take the single seat and leave that entry unable
       // to register at all, so the outlet would have no original to render.
-      const shipped = slots.entriesOfSlot(slot).some(entry => entry.component !== undefined)
+      // Presence, not election: the shipped occupant exists as soon as it registers,
+      // but `entriesOfSlot` is the winning-cell view and can lag or stay empty for a
+      // slot whose cells are elected elsewhere. Taking the seat before that existence
+      // is known is what leaves an outlet with nothing to draw.
+      const shipped = slots.entries(slot).length > 0
+      ;((globalThis as unknown as Record<string, unknown>).__outlets ??= [] as unknown[]) as Array<Record<string, unknown>>;
+      const diag = (globalThis as unknown as Record<string, unknown>).__outlets as Array<Record<string, unknown>>
       if (occupied && dispose === undefined && shipped) {
         const Outlet = (owner: Record<string, unknown>): ReactNode => {
           useSyncExternalStore(
@@ -88,7 +102,7 @@ export function connectSlots<K extends RegionName>(
               registry={registry}
               name={region}
               context={owner as unknown as RegionContext<K>}
-              fallback={original === undefined ? undefined : <OriginalSlotEntry entry={original} owner={owner} />}
+              fallback={original === undefined ? undefined : (render === undefined ? <OriginalSlotEntry entry={original} owner={owner} /> : render(original, owner as Record<string, unknown>))}
             />
           )
         }

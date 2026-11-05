@@ -53,12 +53,13 @@ export function apply(ctx: Context): void {
   ctx.effect(
     () => ctx.proton.connect([
       ...DIRECTORY_FLOW_SLOTS.map(slot => ({ slot, region: DIRECTORY_FLOW_REGION })),
-      // PARKED: the outlet can take this seat, but it cannot render the shipped
-      // list back — the shipped entry declares children/locale/hooks, and
-      // OriginalSlotEntry supports only the plain directory-flow shape. Declaring
-      // the outlet without that support blanks the whole workspace list, so it
-      // stays out of the composition until OriginalSlotEntry covers rich entries.
-      // { slot: WORKSPACES_SLOT, region: WORKSPACES_REGION, children: WORKSPACES_CHILDREN },
+      // PARKED: the outlet takes this seat only once the shipped list is visible to
+      // it, and in this composition that never happens — `entries`/`entriesOfSlot`
+      // both stay empty for the seat while the shipped list renders. Until that is
+      // understood, taking the seat would blank the list. The entry face that can
+      // draw the shipped occupant is in place (ctx.proton.renderEntry).
+      // { slot: WORKSPACES_SLOT, region: WORKSPACES_REGION, children: WORKSPACES_CHILDREN,
+      //   render: (entry, owner) => ctx.proton.renderEntry(entry, owner) },
     ]),
     'proton-adapter-dsh: workspace outlets',
   )
