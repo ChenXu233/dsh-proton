@@ -26,6 +26,16 @@ export const WORKSPACES_SLOT = 'sidebar.workspaces' as const
 /** Region a workspace-list decorator targets. */
 export const WORKSPACES_REGION = 'workspace.list' as const
 
+/**
+ * Child slots the shipped workspace list declares along with its own
+ * registration. An outlet shadows that registration, so it inherits the whole
+ * contract — the directory flow below the list must keep existing even when
+ * nothing but our own sections render the region.
+ */
+export const WORKSPACES_CHILDREN = {
+  'sidebar.workspaces.directoryFlow': { kind: 'single', scope: 'root' },
+} as const
+
 /** The shipped owner contract, re-exported so domains never import ui-workspace themselves. */
 export type DirectoryFlowContext = DirectoryFlowOwnerProps
 
@@ -45,7 +55,7 @@ export function apply(ctx: Context): void {
       ...DIRECTORY_FLOW_SLOTS.map(slot => ({ slot, region: DIRECTORY_FLOW_REGION })),
       // Occupies nothing until a decorator registers, so the shipped list keeps
       // rendering untouched on every deployment that contributes no section.
-      { slot: WORKSPACES_SLOT, region: WORKSPACES_REGION },
+      { slot: WORKSPACES_SLOT, region: WORKSPACES_REGION, children: WORKSPACES_CHILDREN },
     ]),
     'proton-adapter-dsh: workspace outlets',
   )

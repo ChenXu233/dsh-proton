@@ -16,12 +16,18 @@ export interface SlotOutlet<K extends RegionName> {
   region: K
   /** Shadowing priority; lower wins. Defaults to -100 so the outlet shadows the shipped occupant. */
   priority?: number
+  /**
+   * Child slots the shipped occupant declares along with its own registration.
+   * An outlet shadows that occupant, so it has to inherit the same contract:
+   * the children are declared here verbatim, still opaque to core.
+   */
+  children?: Record<string, unknown>
 }
 
 /** The dynamic slice of `ctx.slots` this module needs; keys are runtime strings here. */
 interface RawSlots {
   inject(key: string, callback: () => () => void): () => void
-  register(options: { name: string; priority?: number }, component: unknown): () => void
+  register(options: { name: string; priority?: number; children?: Record<string, unknown> }, component: unknown): () => void
   entries(key: string): readonly StoredEntry[]
   entriesOfSlot(key: string): readonly StoredEntry[]
   onEntryError(fn: (key: string, registration: unknown, error: unknown, info: { abdicated: boolean }) => void): () => void
@@ -40,7 +46,7 @@ export function connectSlots<K extends RegionName>(
   outlets: readonly SlotOutlet<K>[],
 ): () => void {
   const slots = ctx.slots as unknown as RawSlots
-  const cleanups = outlets.map(({ slot, region, priority = -100 }) => slots.inject(slot, () => {
+  const cleanups = outlets.map(({ slot, region, priority = -100, children }) => slots.inject(slot, () => {
     const seen = new WeakSet<StoredEntry>()
     const eligible = new WeakSet<StoredEntry>()
     const retired = new WeakSet<StoredEntry>()
@@ -83,7 +89,7 @@ export function connectSlots<K extends RegionName>(
             />
           )
         }
-        dispose = slots.register({ name: slot, priority }, Outlet)
+        dispose = slots.register(children === undefined ? { name: slot, priority } : { name: slot, priority, children }, Outlet)
       } else if (!occupied && dispose !== undefined) {
         dispose()
         dispose = undefined
