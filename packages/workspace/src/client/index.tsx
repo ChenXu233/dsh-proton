@@ -5,6 +5,7 @@ import { WorkspaceFlow } from './Flow'
 import { SectionRegistry, SectionsHost } from './sections'
 import type { WorkspaceSection } from './sections'
 import { WorkspaceSources } from './sources'
+import { workspaceEntrySources } from './entrySources'
 
 export * from './sources'
 export { NATIVE_SECTION_ORDER, SectionRegistry, SectionsHost } from './sections'
@@ -41,7 +42,9 @@ export const DIRECTORY_FLOW_REGION = 'workspace.directoryFlow' as const
  */
 export const WORKSPACE_LIST_REGION = 'workspace.list' as const
 
-export const inject = ['slots', 'proton'] as const
+// The entry kit reads these services while drawing the shipped workspace entry;
+// cordis refuses an undeclared service access at runtime.
+export const inject = ['slots', 'proton', 'locale', 'workspaces'] as const
 
 export function apply(ctx: Context): void {
   const sources = new WorkspaceSources()
@@ -50,6 +53,13 @@ export function apply(ctx: Context): void {
     addSection: (section: WorkspaceSection) => sections.add(section),
   })
   ctx.provide('protonWorkspace', services)
+  // Draw the shipped workspace entry ourselves: its own renderer is the only thing
+  // that knows the kit it needs, and taking the seat means that renderer is no
+  // longer the one rendering it.
+  ctx.effect(
+    () => ctx.proton.addEntrySources(entry => workspaceEntrySources(ctx, entry)),
+    'proton-workspace: entry sources',
+  )
   ctx.effect(
     () => ctx.proton.registerDecorator(DIRECTORY_FLOW_REGION, { id: 'proton.workspace', order: 0 }, props => (
       <WorkspaceFlow context={props.context} sources={sources} next={props.next} />

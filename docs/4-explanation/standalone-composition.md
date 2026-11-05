@@ -106,3 +106,30 @@ node --check packages/workspace/lib/client.js
 
 - 真实窗口中的点击、焦点、HMR 与卸载。
 - mesh 列表与锚点 Promise 的晚到拒绝路径；现有 active/ticket 守卫未变。
+
+## 谁提供被影子条目的 props（已实施）
+
+占用座位之后，原 winner 由 Proton 画。宿主渲染器在渲染期会合成一批第三方拿不到的
+props：按 scope 注入的 standard props、`locale` 命名空间对应的 `t`、`store` 对应的
+`useStore`/`actions`、`children` 对应的 `renderSlot`，以及 `hooks`/`keyedHooks` 对应的
+`use<Name>` 选择器钩子。`EntryFace`（core）负责装配这份 kit，但**它不知道这些
+props 从哪来**。
+
+分工因此固定为：
+
+| 层 | 职责 |
+| --- | --- |
+| `dsh-proton`（core） | `EntryFace` 装配 kit；`ctx.proton.addEntrySources` 收 provider；缺源时 fail loud |
+| `dsh-proton-workspace` | 认领工作区域的那条 entry，交出 `useWorkspaces`、`locale.bind('workspace')`、store 绑定 |
+| 其它域包 | 只贡献自己的 section，不参与"怎么画别人的组件" |
+
+这条分工的判据是可验证的：**卸掉域包之后，工作区列表仍然正常渲染**。2026-11-05 在
+dev 上实测过一次——把远程工作区包整个从 composition 里摘掉，列表照常两行、无报错。
+
+## 装配层必须守住的不变量
+
+1. **props 身份稳定**：kit 按 entry 记忆；`subscribe`/`getSnapshot` 按源只建一次；
+   keyed hook 按 `(key, member)` 缓存。任一破坏都会变成 React 的 update-depth 错误。
+2. **outlet 绘制不得抛出**：宿主会把抛错的条目判为崩溃并退位，原组件于是悄悄回来。
+3. **owner props 必须下传**：`renderSlot(key, owner)` 的 owner 是调用方的业务 props，
+   丢掉它等于让子条目拿不到 `open`/`onPick`。
