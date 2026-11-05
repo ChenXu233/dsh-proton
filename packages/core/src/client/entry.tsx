@@ -60,27 +60,44 @@ interface ObservableLike<T = unknown> {
  * @param source - observable with snapshot + subscribe.
  * @returns a selector hook.
  */
+const hookCache = new WeakMap<ObservableLike, ReturnType<typeof selectorHook>>()
+
+/**
+ * The selector hook for a source, cached: the host memoizes these per source, and
+ * a fresh hook identity on every render is treated as a changed dependency.
+ * @param source - observable with snapshot + subscribe.
+ * @returns a stable selector hook.
+ */
+function hookFor(source: ObservableLike) {
+  const cached = hookCache.get(source)
+  if (cached !== undefined) return cached
+  const built = selectorHook(source)
+  hookCache.set(source, built)
+  return built
+}
+
 function selectorHook(source: ObservableLike) {
-  return function useSelected<T>(selector: (snapshot: never) => T): T {
-    // Selecting on every read returns a fresh object for object snapshots, which
-    // React treats as a changing store and can escalate into an update loop.
-    const cache = useRef<{ raw: unknown, selected: T } | undefined>(undefined)
-    const read = (): T => {
+  return function useSelector<T>(selector: (snapshot: never) => T): T {
+    // The host binds one subscribe/getSnapshot pair per source and keeps it. A new
+    // pair on every render resubscribes each frame, and a source that notifies on
+    // subscribe turns that into an unbounded render loop.
+    const subscribe = useMemo(() => (listener: () => void) => source.subscribe(listener), [])
+    const holder = useRef<{ raw: unknown, selected: T } | undefined>(undefined)
+    const selectorRef = useRef(selector)
+    selectorRef.current = selector
+    const getSnapshot = useMemo(() => (): T => {
       const raw = source.getSnapshot()
-      const held = cache.current
+      const held = holder.current
       if (held !== undefined && held.raw === raw) return held.selected
-      const selected = selector(raw as never)
-      // A source that rebuilds its snapshot per read makes every selection a new
-      // value, which React reads as a changing store and answers with an update
-      // loop. Keeping the previous selection when it is shallow-equal breaks that.
+      const selected = selectorRef.current(raw as never)
       if (held !== undefined && shallowEqual(held.selected, selected)) {
-        cache.current = { raw, selected: held.selected }
+        holder.current = { raw, selected: held.selected }
         return held.selected
       }
-      cache.current = { raw, selected }
+      holder.current = { raw, selected }
       return selected
-    }
-    return useSyncExternalStore(listener => source.subscribe(listener), read, read)
+    }, [])
+    return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
   }
 }
 
@@ -201,20 +218,27 @@ export function kitOf(
   // selector hook per source and passes that. Handing over the raw table leaves
   // the component calling `undefined`.
   const hooks = injected['hooks'] as Record<string, ObservableLike> | undefined
-  const freezeHooks = (globalThis as unknown as { __freezeHooks?: boolean }).__freezeHooks === true
   if (hooks !== undefined) {
     for (const [name, source] of Object.entries(hooks)) {
-      kit[standardHookPropName(name)] = freezeHooks
-        ? (selector: (snapshot: never) => unknown) => selector(source.getSnapshot() as never)
-        : selectorHook(source)
+      kit[standardHookPropName(name)] = hookFor(source)
     }
   }
   const keyedHooks = injected['keyedHooks'] as Record<string, (key: string, member?: string) => ObservableLike | undefined> | undefined
   if (keyedHooks !== undefined) {
     for (const [name, source] of Object.entries(keyedHooks)) {
+      // A keyed hook returns a hook, and the caller may render with it directly.
+      // Returning a fresh function per call hands React a different hook on every
+      // render — hook order breaks and the component loops.
+      const perKey = new Map<string, ReturnType<typeof hookFor>>()
       kit[standardHookPropName(name)] = (key: string, member?: string) => {
+        const id = member === undefined ? key : key + '\u0000' + member
+        const cached = perKey.get(id)
+        if (cached !== undefined) return cached
         const found = source(key, member)
-        return found === undefined ? undefined : selectorHook(found)
+        if (found === undefined) return undefined
+        const built = hookFor(found)
+        perKey.set(id, built)
+        return built
       }
     }
   }
@@ -255,8 +279,6 @@ export function EntryFace({ ctx, entry, sources }: {
   // The kit carries function-valued props (t, renderSlot, hooks). Rebuilding them
   // per render hands the component new dependencies every frame, which React turns
   // into a render loop.
-  const g = globalThis as unknown as Record<string, number>
-  g.__faceRenders = (g.__faceRenders ?? 0) + 1
   // Keyed by entry, not by the sources object: callers build that object per call,
   // and a kit rebuilt on every render hands the component fresh function props,
   // which its effects treat as a change and answer with another render.
