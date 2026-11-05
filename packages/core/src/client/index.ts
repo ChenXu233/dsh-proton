@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ReactNode } from 'react'
 import { RegionRegistry } from './region'
@@ -27,6 +28,17 @@ export type RegionContext<K extends RegionName> = ProtonRegionMap[K] extends { c
 export type RendererProps<K extends RegionName> = { context: RegionContext<K> }
 export type ContributionProps<K extends RegionName> = RendererProps<K>
 export type DecoratorProps<K extends RegionName> = RendererProps<K> & { next: () => ReactNode }
+
+/** Why an entry could not be drawn, shown where the entry would have been. */
+function renderFailure(entry: StoredEntry, error: unknown): ReactNode {
+  const message = error instanceof Error ? error.message : String(error)
+  const stack = error instanceof Error ? (error.stack ?? '') : ''
+  const who = (entry as { registrant?: string }).registrant ?? 'unknown registrant'
+  return createElement('div', {
+    'data-outlet-error': `${who}: ${message}`,
+    style: { padding: '8px 12px', fontSize: 11, lineHeight: '15px', color: '#d97706', whiteSpace: 'pre-wrap' },
+  }, message, stack === '' ? null : createElement('pre', { style: { fontSize: 10, margin: 0 } }, stack.split('\n').slice(0, 8).join('\n')))
+}
 
 /** `ctx.proton`: the composition registry plus the outlet wiring that needs `ctx.slots`. */
 export class ProtonRegistry extends RegionRegistry {
@@ -79,11 +91,20 @@ export class ProtonRegistry extends RegionRegistry {
    * @returns the rendered node.
    */
   renderEntry(entry: StoredEntry, owner: Record<string, unknown>): ReactNode {
-    for (const provider of this.entryProviders) {
-      const sources = provider(entry)
-      if (sources !== undefined) return this.entryFace(entry, { ...sources, owner })
+    // An outlet that throws while drawing its shadowed occupant is treated by the
+    // host as a broken entry and retired from the cell — the region then silently
+    // falls back to the very component the outlet was wrapping. Never throw here.
+    try {
+      for (const provider of this.entryProviders) {
+        const sources = provider(entry)
+        if (sources === undefined) continue
+        if (sources.draw !== undefined) return sources.draw(entry, owner)
+        return this.entryFace(entry, { ...sources, owner })
+      }
+      return OriginalSlotEntry({ entry, owner })
+    } catch (error) {
+      return renderFailure(entry, error)
     }
-    return OriginalSlotEntry({ entry, owner })
   }
 
   /** Domains that know how to draw a particular entry. */

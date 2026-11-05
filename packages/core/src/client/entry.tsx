@@ -1,4 +1,5 @@
-import { createElement } from 'react'
+import { createElement, useMemo, useRef, useSyncExternalStore } from 'react'
+import { standardHookPropName } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComponentType, ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
@@ -29,6 +30,11 @@ export interface EntryKitSources {
    * `useStore` and `actions`.
    */
   storeOf?: (entry: StoredEntry) => { useStore: unknown, actions: unknown } | undefined
+  /**
+   * Draw the entry outright instead of assembling the host's kit for it. Providers
+   * use this when the shipped component cannot be driven through kit props alone.
+   */
+  draw?: (entry: StoredEntry, owner: Record<string, unknown>) => ReactNode
   /** Owner props from whoever renders the slot. */
   owner?: Record<string, unknown>
 }
@@ -40,6 +46,65 @@ export interface ChildSlotOptions {
   fallback?: ReactNode
   /** Opaque occurrence context for slot-declared hooks (row menus bind through it). */
   hookContext?: unknown
+}
+
+/** One observable source the host would expose as a hook prop. */
+interface ObservableLike<T = unknown> {
+  getSnapshot(): T
+  subscribe(listener: () => void): () => void
+}
+
+/**
+ * Turn an observable source into the selector hook the shipped component expects
+ * (`hooks: { hostInfo }` arrives as the `useHostInfo` prop).
+ * @param source - observable with snapshot + subscribe.
+ * @returns a selector hook.
+ */
+function selectorHook(source: ObservableLike) {
+  return function useSelected<T>(selector: (snapshot: never) => T): T {
+    // Selecting on every read returns a fresh object for object snapshots, which
+    // React treats as a changing store and can escalate into an update loop.
+    const cache = useRef<{ raw: unknown, selected: T } | undefined>(undefined)
+    const read = (): T => {
+      const raw = source.getSnapshot()
+      const held = cache.current
+      if (held !== undefined && held.raw === raw) return held.selected
+      const selected = selector(raw as never)
+      // A source that rebuilds its snapshot per read makes every selection a new
+      // value, which React reads as a changing store and answers with an update
+      // loop. Keeping the previous selection when it is shallow-equal breaks that.
+      if (held !== undefined && shallowEqual(held.selected, selected)) {
+        cache.current = { raw, selected: held.selected }
+        return held.selected
+      }
+      cache.current = { raw, selected }
+      return selected
+    }
+    return useSyncExternalStore(listener => source.subscribe(listener), read, read)
+  }
+}
+
+/**
+ * One-level structural comparison, enough to stop a rebuilt snapshot from being
+ * mistaken for a state change.
+ * @param left - previous value.
+ * @param right - candidate value.
+ * @returns true when both are the same shape with the same leaves.
+ */
+function shallowEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) return false
+  if (Array.isArray(left) !== Array.isArray(right)) return false
+  const a = left as Record<string, unknown>
+  const b = right as Record<string, unknown>
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  for (const key of keysA) {
+    if (!(key in b)) return false
+    if (a[key] !== b[key]) return false
+  }
+  return true
 }
 
 /** How deep child slots may nest before this face gives up. */
@@ -126,10 +191,32 @@ export function kitOf(
   sources: EntryKitSources = {},
   depth = 0,
 ): Record<string, unknown> {
+  const injected = injectedOf(entry)
   const kit: Record<string, unknown> = {
     ...sources.standard,
-    ...injectedOf(entry),
+    ...injected,
     ...sources.owner,
+  }
+  // Declared hook sources are not props: the host synthesizes one `use<Name>`
+  // selector hook per source and passes that. Handing over the raw table leaves
+  // the component calling `undefined`.
+  const hooks = injected['hooks'] as Record<string, ObservableLike> | undefined
+  const freezeHooks = (globalThis as unknown as { __freezeHooks?: boolean }).__freezeHooks === true
+  if (hooks !== undefined) {
+    for (const [name, source] of Object.entries(hooks)) {
+      kit[standardHookPropName(name)] = freezeHooks
+        ? (selector: (snapshot: never) => unknown) => selector(source.getSnapshot() as never)
+        : selectorHook(source)
+    }
+  }
+  const keyedHooks = injected['keyedHooks'] as Record<string, (key: string, member?: string) => ObservableLike | undefined> | undefined
+  if (keyedHooks !== undefined) {
+    for (const [name, source] of Object.entries(keyedHooks)) {
+      kit[standardHookPropName(name)] = (key: string, member?: string) => {
+        const found = source(key, member)
+        return found === undefined ? undefined : selectorHook(found)
+      }
+    }
   }
   if (entry.locale !== undefined) {
     const translate = sources.translate
@@ -165,7 +252,17 @@ export function EntryFace({ ctx, entry, sources }: {
   entry: StoredEntry
   sources?: EntryKitSources
 }): ReactNode {
-  const kit = kitOf(ctx, entry, sources)
+  // The kit carries function-valued props (t, renderSlot, hooks). Rebuilding them
+  // per render hands the component new dependencies every frame, which React turns
+  // into a render loop.
+  const g = globalThis as unknown as Record<string, number>
+  g.__faceRenders = (g.__faceRenders ?? 0) + 1
+  // Keyed by entry, not by the sources object: callers build that object per call,
+  // and a kit rebuilt on every render hands the component fresh function props,
+  // which its effects treat as a change and answer with another render.
+  const latest = useRef(sources)
+  latest.current = sources
+  const kit = useMemo(() => kitOf(ctx, entry, latest.current), [ctx, entry])
   const Component = entry.component as ComponentType<Record<string, unknown>>
   return createElement(Component, { key: keyOf(entry), ...kit })
 }

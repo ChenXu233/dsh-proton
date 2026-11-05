@@ -8,6 +8,19 @@ import { RegionHost } from './region'
 import type { RegionContext, RegionName } from './index'
 import type { RegionRegistry } from './region'
 
+/**
+ * The shadowed occupant, drawn through a component body so an error boundary can
+ * catch it: a JSX prop expression evaluates inside the outlet's own render, where
+ * no boundary of ours can see it.
+ */
+function ShadowedEntry({ entry, owner, draw }: {
+  entry: StoredEntry
+  owner: Record<string, unknown>
+  draw?: ((entry: StoredEntry, owner: Record<string, unknown>) => ReactNode) | undefined
+}): ReactNode {
+  return draw === undefined ? <OriginalSlotEntry entry={entry} owner={owner} /> : draw(entry, owner)
+}
+
 /** One official slot the outlet may occupy on behalf of a region. */
 export interface SlotOutlet<K extends RegionName> {
   /** Official slot key (opaque to core; the caller's domain owns the meaning). */
@@ -102,7 +115,7 @@ export function connectSlots<K extends RegionName>(
               registry={registry}
               name={region}
               context={owner as unknown as RegionContext<K>}
-              fallback={original === undefined ? undefined : (render === undefined ? <OriginalSlotEntry entry={original} owner={owner} /> : render(original, owner as Record<string, unknown>))}
+              fallback={original === undefined ? undefined : <ShadowedEntry entry={original} owner={owner as Record<string, unknown>} draw={render} />}
             />
           )
         }
