@@ -7,6 +7,7 @@ import type { SlotOutlet } from './slot'
 export * from './region'
 export * from './original'
 export * from './slot'
+export * from './entry'
 
 /**
  * Region vocabulary. Empty here on purpose: core knows nothing about workspaces,
