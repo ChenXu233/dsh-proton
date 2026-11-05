@@ -15,12 +15,25 @@ export const DIRECTORY_FLOW_SLOTS = [
 /** Region a directory-flow decorator targets. */
 export const DIRECTORY_FLOW_REGION = 'workspace.directoryFlow' as const
 
+/**
+ * The seat holding the whole workspace list. A domain that takes it can render
+ * its own sections beside the shipped one, or replace it outright — the region
+ * is the workspace domain's home, the directory flow above is only one child
+ * of the UI it inherits.
+ */
+export const WORKSPACES_SLOT = 'sidebar.workspaces' as const
+
+/** Region a workspace-list decorator targets. */
+export const WORKSPACES_REGION = 'workspace.list' as const
+
 /** The shipped owner contract, re-exported so domains never import ui-workspace themselves. */
 export type DirectoryFlowContext = DirectoryFlowOwnerProps
 
 declare module 'dsh-proton/client' {
   interface ProtonRegionMap {
     'workspace.directoryFlow': { context: DirectoryFlowContext }
+    /** Owner props the shipped list passes down; opaque to this adapter. */
+    'workspace.list': { context: Record<string, unknown> }
   }
 }
 
@@ -28,7 +41,12 @@ export const inject = ['slots', 'proton'] as const
 
 export function apply(ctx: Context): void {
   ctx.effect(
-    () => ctx.proton.connect(DIRECTORY_FLOW_SLOTS.map(slot => ({ slot, region: DIRECTORY_FLOW_REGION }))),
-    'proton-adapter-dsh: directory-flow outlets',
+    () => ctx.proton.connect([
+      ...DIRECTORY_FLOW_SLOTS.map(slot => ({ slot, region: DIRECTORY_FLOW_REGION })),
+      // Occupies nothing until a decorator registers, so the shipped list keeps
+      // rendering untouched on every deployment that contributes no section.
+      { slot: WORKSPACES_SLOT, region: WORKSPACES_REGION },
+    ]),
+    'proton-adapter-dsh: workspace outlets',
   )
 }
