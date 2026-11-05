@@ -180,17 +180,21 @@ function createSlotFace(
     const slots = ctx.slots as unknown as {
       entriesOfSlot(slot: string): readonly StoredEntry[]
     }
+    // `renderSlot(key, owner)` hands the caller's owner props to the child entry;
+    // only these four keys are machinery. Dropping the rest leaves a picker with
+    // no `open`, no `onPick` and no anchor — it renders nothing at all.
+    const { entryKey: _entryKey, only, fallback, hookContext, ...ownerProps } = options as ChildSlotOptions & Record<string, unknown>
     const winners = slots.entriesOfSlot(key)
-    if (winners.length === 0) return options.fallback ?? null
+    if (winners.length === 0) return fallback ?? null
     const rendered: ReactNode[] = []
     for (const child of winners) {
-      if (options.only !== undefined && child.options?.id !== options.only) continue
+      if (only !== undefined && child.options?.id !== only) continue
       rendered.push(createElement(
         child.component as ComponentType<Record<string, unknown>>,
-        { key: keyOf(child), ...kitOf(ctx, child, sources, depth + 1) },
+        { key: keyOf(child), ...kitOf(ctx, child, sources, depth + 1), ...ownerProps, ...(hookContext === undefined ? {} : { hookContext }) },
       ))
     }
-    return rendered.length === 0 ? (options.fallback ?? null) : rendered
+    return rendered.length === 0 ? (fallback ?? null) : rendered
   }
 }
 

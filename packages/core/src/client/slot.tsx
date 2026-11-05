@@ -89,8 +89,6 @@ export function connectSlots<K extends RegionName>(
       // slot whose cells are elected elsewhere. Taking the seat before that existence
       // is known is what leaves an outlet with nothing to draw.
       const shipped = slots.entries(slot).length > 0
-      ;((globalThis as unknown as Record<string, unknown>).__outlets ??= [] as unknown[]) as Array<Record<string, unknown>>;
-      const diag = (globalThis as unknown as Record<string, unknown>).__outlets as Array<Record<string, unknown>>
       if (occupied && dispose === undefined && shipped) {
         const Outlet = (owner: Record<string, unknown>): ReactNode => {
           useSyncExternalStore(
