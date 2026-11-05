@@ -109,8 +109,10 @@ class SectionBoundary extends Component<{ label: string; children: ReactNode }, 
  */
 export function SectionsHost({ registry, next }: {
   registry: SectionRegistry
-  next: () => ReactNode
+  /** The shipped list: a renderer, or ready content depending on the host. */
+  next: ReactNode | (() => ReactNode)
 }): ReactNode {
+  const renderNative = typeof next === 'function' ? next : () => next
   useSyncExternalStore(registry.subscribe, registry.getVersion, registry.getVersion)
   const sections = registry.list()
   const nativeClaimed = sections.some(section => section.replacesNative === true)
@@ -123,7 +125,7 @@ export function SectionsHost({ registry, next }: {
     body: () => section.render(),
   }))
   if (!nativeClaimed) {
-    placements.push({ key: 'section:@native', order: NATIVE_SECTION_ORDER, index: -1, title: undefined, body: next })
+    placements.push({ key: 'section:@native', order: NATIVE_SECTION_ORDER, index: -1, title: undefined, body: renderNative })
   }
   placements.sort((left, right) => left.order - right.order || left.index - right.index)
 
