@@ -20,10 +20,11 @@ declare module 'dsh-proton/client' {
 }
 ```
 
-当前只有一个 region，由 `dsh-proton-adapter-dsh` 声明：
+当前两个 region，由 `dsh-proton-adapter-dsh` 声明：
 
 | Region | context | 谁声明 | 谁接官方槽 |
 | --- | --- | --- | --- |
+| `workspace.list` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces`（含子槽 `directoryFlow`） |
 | `workspace.directoryFlow` | `DirectoryFlowContext` | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces.directoryFlow` 与 `conversation.hero.workspace.directoryFlow` |
 
 官方槽位与 `DirectoryFlowContext` 都只出现在适配包里；域包通过 `registerDecorator` 参与，不 import `ui-workspace`。
@@ -40,6 +41,8 @@ interface SlotOutlet<K> {
   slot: string      // 官方 slot key，core 只当成字符串
   region: K
   priority?: number // 默认 -100，压过 shipped occupant
+  render?: (entry, owner) => ReactNode  // 合成 kit 后画官方 entry；省略时按原样渲染
+  split?: { defaultRatio?: number; minPx?: number; maxRatio?: number }  // 官方占主栏，contributions 进可拖拽的下栏
 }
 ```
 
@@ -82,3 +85,20 @@ OriginalSlotEntry({ entry, owner }: { entry: StoredEntry; owner: object }): Reac
 复用官方 entry 的 `component` 与 `inject`：inject 结果按 entry identity 缓存（`WeakMap`），只执行一次；渲染时 injected props 在前、当前 owner props 在后（owner 冲突字段优先）。entry 按 identity 设 React key。
 
 以下形态抛错，不降级：`children`、`store`、`locale`，以及 inject 结果里的 `hooks`、`keyedHooks`。错误信息带 registrant。
+
+## 分栏（split）
+
+`connect(outlets, { split })` 传入一个持久化的比例 store；outlet 声明 `split` 后，座位渲染成：
+
+```text
+┌──────────────────────────────┐
+│ 主栏：官方 entry（flex:1）     │
+├──────────────────────────────┤  ← 6px 分隔条，role=separator，可拖、可键盘
+│ 下栏：region contributions     │
+└──────────────────────────────┘
+```
+
+- 只在下栏**有内容**时才分栏：没有 contribution 时官方占满整列。
+- 比例存在主机的 client store 里（`defineStore` + `persist`），与官方视图状态同一个引擎，不自己发明键格式。
+- 默认 0.5；下限由 `minPx`（默认 120px）换算，上限 `maxRatio`（默认 0.8）。拖拽期间只更新本地状态，松手才写一次 store。
+- `SplitStore` 由调用方提供：core 不 import 主机的 store 包，adapter 负责把 DSH 的引擎接进来。

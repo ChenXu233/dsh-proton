@@ -4,7 +4,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import { OriginalSlotEntry } from './original'
-import { RegionHost } from './region'
+import { RegionContributions, RegionHost, useHasContributions } from './region'
+import { SplitPane } from './split'
+import type { SplitStore } from './split'
 import type { RegionContext, RegionName } from './index'
 import type { RegionRegistry } from './region'
 
@@ -42,6 +44,16 @@ export interface SlotOutlet<K extends RegionName> {
    * seat, store binding) draws it through the entry face instead.
    */
   render?: (entry: StoredEntry, owner: Record<string, unknown>) => ReactNode
+  /**
+   * Split the seat: the shipped occupant keeps the main pane, region
+   * contributions get a resizable bottom pane. Omitted, contributions stack
+   * under the occupant in one scroll area.
+   */
+  split?: {
+    defaultRatio?: number
+    minPx?: number
+    maxRatio?: number
+  }
 }
 
 /** The dynamic slice of `ctx.slots` this module needs; keys are runtime strings here. */
@@ -64,9 +76,10 @@ export function connectSlots<K extends RegionName>(
   ctx: Context,
   registry: RegionRegistry,
   outlets: readonly SlotOutlet<K>[],
+  splitStore?: SplitStore,
 ): () => void {
   const slots = ctx.slots as unknown as RawSlots
-  const cleanups = outlets.map(({ slot, region, priority = -100, children, render }) => slots.inject(slot, () => {
+  const cleanups = outlets.map(({ slot, region, priority = -100, children, render, split }) => slots.inject(slot, () => {
     const seen = new WeakSet<StoredEntry>()
     const eligible = new WeakSet<StoredEntry>()
     const retired = new WeakSet<StoredEntry>()
@@ -96,6 +109,7 @@ export function connectSlots<K extends RegionName>(
             () => slots.getVersion(slot),
             () => slots.getVersion(slot),
           )
+          const hasContributions = useHasContributions(registry, region)
           let original: StoredEntry | undefined
           for (const entry of slots.entries(slot)) {
             if (entry.component === Outlet) continue
@@ -108,12 +122,26 @@ export function connectSlots<K extends RegionName>(
               break
             }
           }
+          const shared = original === undefined
+            ? undefined
+            : <ShadowedEntry entry={original} owner={owner as Record<string, unknown>} draw={render} />
+          if (split !== undefined && splitStore !== undefined && hasContributions && shared !== undefined) {
+            return (
+              <SplitPane
+                store={splitStore}
+                slot={slot}
+                top={shared}
+                bottom={<RegionContributions registry={registry} name={region} context={owner as unknown as RegionContext<K>} />}
+                {...split}
+              />
+            )
+          }
           return (
             <RegionHost
               registry={registry}
               name={region}
               context={owner as unknown as RegionContext<K>}
-              fallback={original === undefined ? undefined : <ShadowedEntry entry={original} owner={owner as Record<string, unknown>} draw={render} />}
+              fallback={shared}
             />
           )
         }

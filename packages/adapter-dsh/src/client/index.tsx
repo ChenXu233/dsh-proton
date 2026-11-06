@@ -1,6 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { defineStore } from '@deepseek-ai/dsh-client-store'
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from 'dsh-proton/client'
+import type { SplitState, SplitStore } from 'dsh-proton/client'
 
 /**
  * The two official seats a directory-picker backend's client half fills. Their
@@ -49,7 +51,27 @@ declare module 'dsh-proton/client' {
 
 export const inject = ['slots', 'proton'] as const
 
+/**
+ * Split ratios live beside the host's own view state: the client store engine
+ * with the same `persist` mechanism the shipped workspace browser uses for its
+ * grouping and order, not a private key scheme.
+ * @returns the store face the proton split pane reads.
+ */
+function createSplitStore(): SplitStore {
+  const handle = defineStore({
+    init: (): SplitState => ({ ratios: {} }),
+    persist: 'dsh.proton.split.v1',
+    actions: {
+      setRatio: (draft: SplitState, slot: string, ratio: number) => {
+        draft.ratios[slot] = ratio
+      },
+    },
+  })
+  return handle.create() as unknown as SplitStore
+}
+
 export function apply(ctx: Context): void {
+  const split = createSplitStore()
   ctx.effect(
     () => ctx.proton.connect([
       ...DIRECTORY_FLOW_SLOTS.map(slot => ({ slot, region: DIRECTORY_FLOW_REGION })),
@@ -59,8 +81,11 @@ export function apply(ctx: Context): void {
         // The shipped list declares locale/children/store, so the plain renderer
         // cannot draw it; the domain that contributed the region supplies the kit.
         render: (entry, owner) => ctx.proton.renderEntry(entry, owner),
+        // The shipped list keeps the main pane; sections get a resizable bottom
+        // pane (default half, never below 120px, never above 80%).
+        split: { defaultRatio: 0.5, minPx: 120, maxRatio: 0.8 },
       },
-    ]),
+    ], { split }),
     'proton-adapter-dsh: workspace outlets',
   )
 }

@@ -5,6 +5,7 @@ import { RegionRegistry } from './region'
 import { connectSlots } from './slot'
 import type { SlotOutlet } from './slot'
 import { EntryFace } from './entry'
+import type { SplitStore } from './split'
 import { OriginalSlotEntry } from './original'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import type { EntryKitSources } from './entry'
@@ -13,6 +14,7 @@ export * from './region'
 export * from './original'
 export * from './slot'
 export * from './entry'
+export * from './split'
 
 /**
  * Region vocabulary. Empty here on purpose: core knows nothing about workspaces,
@@ -47,8 +49,18 @@ export class ProtonRegistry extends RegionRegistry {
   }
 
   /** Wrap the official winners of `outlets` while their regions have content. */
-  connect<K extends RegionName>(outlets: readonly SlotOutlet<K>[]): () => void {
-    return connectSlots(this.host, this, outlets)
+  /**
+   * Wrap the official winners of `outlets` while their regions have content.
+   *
+   * A split seat needs somewhere to persist its pane share; the caller supplies
+   * that store (the DSH adapter wires the client store engine), so this core
+   * package stays free of the host's storage choice.
+   * @param outlets - seats to shadow.
+   * @param options.split - persisted split ratios, when a seat asks to split.
+   * @returns disposer.
+   */
+  connect<K extends RegionName>(outlets: readonly SlotOutlet<K>[], options: { split?: SplitStore } = {}): () => void {
+    return connectSlots(this.host, this, outlets, options.split)
   }
 
   /**

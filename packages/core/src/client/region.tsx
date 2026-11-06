@@ -119,6 +119,42 @@ export class RegionRegistry {
   }
 }
 
+/** Render only a region's contributions: the split layout's bottom pane. */
+export function RegionContributions<K extends RegionName>(props: {
+  registry: RegionRegistry
+  name: K
+  context: RegionContext<K>
+}): ReactNode {
+  const { registry, name, context } = props
+  useSyncExternalStore(registry.subscribe, registry.getVersion, registry.getVersion)
+  const regionContext = context as unknown as RegionContext<RegionName>
+  return (
+    <Fragment>
+      {registry.snapshot(name).contributions.map((entry) => {
+        const Contribution = entry.component
+        return <Contribution key={entry.id} context={regionContext} />
+      })}
+    </Fragment>
+  )
+}
+
+/**
+ * Whether a region has any contribution right now.
+ *
+ * A split seat only splits when there is something below: an empty bottom pane
+ * would shrink the shipped component for nothing.
+ * @param registry - region registry.
+ * @param name - region name.
+ * @returns true while at least one contribution is registered.
+ */
+export function useHasContributions<K extends RegionName>(registry: RegionRegistry, name: K): boolean {
+  return useSyncExternalStore(
+    registry.subscribe,
+    () => registry.snapshot(name).contributions.length > 0,
+    () => false,
+  )
+}
+
 /** Render one region: contributions around a renderer (or fallback), wrapped by decorators. */
 export function RegionHost<K extends RegionName>(props: {
   registry: RegionRegistry
