@@ -45,6 +45,14 @@ export interface SlotOutlet<K extends RegionName> {
    */
   render?: (entry: StoredEntry, owner: Record<string, unknown>) => ReactNode
   /**
+   * Take the seat even while its region has no renderer, decorator or
+   * contribution. Omitted, the outlet only registers once the region is
+   * occupied — the right default for a seat that exists to host sections.
+   * A seat whose whole point is to re-render the same entry with a different
+   * kit (no extra content) asks for the shadow directly instead.
+   */
+  alwaysShadow?: boolean
+  /**
    * Split the seat: the shipped occupant keeps the main pane, region
    * contributions get a resizable bottom pane. Omitted, contributions stack
    * under the occupant in one scroll area.
@@ -79,7 +87,7 @@ export function connectSlots<K extends RegionName>(
   splitStore?: SplitStore,
 ): () => void {
   const slots = ctx.slots as unknown as RawSlots
-  const cleanups = outlets.map(({ slot, region, priority = -100, children, render, split }) => slots.inject(slot, () => {
+  const cleanups = outlets.map(({ slot, region, priority = -100, children, render, split, alwaysShadow = false }) => slots.inject(slot, () => {
     const seen = new WeakSet<StoredEntry>()
     const eligible = new WeakSet<StoredEntry>()
     const retired = new WeakSet<StoredEntry>()
@@ -93,7 +101,7 @@ export function connectSlots<K extends RegionName>(
     })
     let dispose: (() => void) | undefined
     const sync = (): void => {
-      const occupied = registry.snapshot(region).occupied
+      const occupied = alwaysShadow || registry.snapshot(region).occupied
       // An occupant can only shadow something that exists: registering before the
       // shipped entry does would take the single seat and leave that entry unable
       // to register at all, so the outlet would have no original to render.

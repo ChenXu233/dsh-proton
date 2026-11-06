@@ -288,7 +288,17 @@ export function EntryFace({ ctx, entry, sources }: {
   // which its effects treat as a change and answer with another render.
   const latest = useRef(sources)
   latest.current = sources
-  const kit = useMemo(() => kitOf(ctx, entry, latest.current), [ctx, entry])
+  // Owner props are per-render data (a menu's `open`, the current selection, the
+  // anchor ref): memoizing them would freeze the entry in the render that first
+  // mounted it. Only the kit — translator, hooks, store binding, slot face — is
+  // memoized, because rebuilding those per render hands the component new
+  // function dependencies every frame.
+  const kit = useMemo(() => {
+    const current = latest.current ?? {}
+    const { owner: _owner, ...rest } = current
+    return kitOf(ctx, entry, rest)
+  }, [ctx, entry])
+  const owner = latest.current?.owner ?? {}
   const Component = entry.component as ComponentType<Record<string, unknown>>
-  return createElement(Component, { key: keyOf(entry), ...kit })
+  return createElement(Component, { key: keyOf(entry), ...kit, ...owner })
 }

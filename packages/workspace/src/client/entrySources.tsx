@@ -1,6 +1,8 @@
 import { useRef, useSyncExternalStore } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { EntryKitSources } from 'dsh-proton/client'
+import { isPickerEntry, pickerSources } from './picker'
+import type { PickerExtras } from './picker'
 import type {} from './index'
 
 /** Observable source the host would expose as a selector hook. */
@@ -19,6 +21,8 @@ interface RawEntry {
   component: unknown
   locale?: string
   registrant?: string | undefined
+  /** Child slots the entry declared with its registration (the picker declares one). */
+  children?: Record<string, unknown>
   store?: { create?: () => { getSnapshot?: () => unknown, subscribe?: (fn: () => void) => () => void, actions?: unknown } }
 }
 
@@ -127,17 +131,37 @@ function storeSeat(entry: RawEntry): { useStore: unknown, actions: unknown } | u
  * @param entry - the entry the outlet shadowed.
  * @returns kit sources, or undefined when this entry is not ours to draw.
  */
-export function workspaceEntrySources(ctx: Context, entry: unknown): EntryKitSources | undefined {
+export function workspaceEntrySources(
+  ctx: Context,
+  entry: unknown,
+  extrasOf: () => PickerExtras | undefined = () => undefined,
+): EntryKitSources | undefined {
   const declared = entry as RawEntry
   if (declared.locale !== 'workspace') return undefined
   const locale = (ctx as unknown as { locale?: LocaleLike }).locale
   const workspaces = (ctx as unknown as { workspaces?: { list: WorkspaceListSource } }).workspaces
+  // The host synthesizes this seat from the declared namespace; the locale
+  // service binds the same stable function, so keys and fallbacks agree.
+  const translate = (namespace: string): unknown =>
+    (locale === undefined ? (key: string) => key : locale.bind(namespace))
+
+  // The hero picker is the one entry whose list a domain may extend: it reads
+  // the root hook and nothing else, so the kit hands it a merged snapshot and a
+  // pick face that knows which rows are not local Workspaces.
+  if (isPickerEntry(declared)) {
+    return pickerSources(
+      ctx as unknown as { proton: { entryFace(entry: unknown, sources?: EntryKitSources): unknown } },
+      {
+        translate,
+        ...(workspaces === undefined ? {} : { baseHook: selectorHook(workspaces.list) as never }),
+      },
+      extrasOf,
+    )
+  }
 
   return {
     standard: workspaces === undefined ? {} : { useWorkspaces: selectorHook(workspaces.list) },
-    // The host synthesizes this seat from the declared namespace; the locale
-    // service binds the same stable function, so keys and fallbacks agree.
-    translate: namespace => (locale === undefined ? (key: string) => key : locale.bind(namespace)),
+    translate,
     storeOf: candidate => storeSeat(candidate as RawEntry),
   }
 }

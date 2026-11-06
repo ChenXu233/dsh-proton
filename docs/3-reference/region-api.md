@@ -20,12 +20,13 @@ declare module 'dsh-proton/client' {
 }
 ```
 
-当前两个 region，由 `dsh-proton-adapter-dsh` 声明：
+当前三个 region：两个由 `dsh-proton-adapter-dsh` 声明，一个由工作区域包声明：
 
 | Region | context | 谁声明 | 谁接官方槽 |
 | --- | --- | --- | --- |
 | `workspace.list` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces`（含子槽 `directoryFlow`） |
 | `workspace.directoryFlow` | `DirectoryFlowContext` | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces.directoryFlow` 与 `conversation.hero.workspace.directoryFlow` |
+| `hero.workspace` | `Record<string, unknown>`（owner props） | `dsh-proton-workspace` | 是：`conversation.hero.workspace`（只换 kit，不换组件） |
 
 官方槽位与 `DirectoryFlowContext` 都只出现在适配包里；域包通过 `registerDecorator` 参与，不 import `ui-workspace`。
 
@@ -41,6 +42,7 @@ interface SlotOutlet<K> {
   slot: string      // 官方 slot key，core 只当成字符串
   region: K
   priority?: number // 默认 -100，压过 shipped occupant
+  alwaysShadow?: boolean // 默认 false：只在 region 有内容时占座；true 表示没有 contribution 也要占
   render?: (entry, owner) => ReactNode  // 合成 kit 后画官方 entry；省略时按原样渲染
   split?: { defaultRatio?: number; minPx?: number; maxRatio?: number }  // 官方占主栏，contributions 进可拖拽的下栏
 }
@@ -71,6 +73,19 @@ ctx.proton.subscribe(listener)  // 返回取消订阅函数
 ```
 
 `occupied` 为任一 Renderer / Decorator / Contribution 存在。`connect()` 出来的 Outlet 只在 `occupied` 时向官方 slot 注册，最后一份内容卸载后撤离，官方 occupant 自然恢复。
+
+`alwaysShadow: true` 的座位不看 `occupied`：它要的是“同一个 entry、换一套 kit”，本来就没有额外内容。这种座位必须保证 entry 有 provider 认领（见下一节），否则会落到 `OriginalSlotEntry` 的抛错分支。
+
+## Entry kit 与 picker 座位
+
+`ctx.proton.addEntrySources(provider)` 让域包认领 entry 并描述主机会怎么合成它的 props。工作区域包用这条给 **hero 的 workspace picker** 换 kit：`open` / `onPick` / `anchorRef` 由座位（owner）逐次传入，`useWorkspaces` / `t` / `renderSlot` 由域包提供。
+
+两条容易踩的约束：
+
+- **owner props 逐次渲染，不缓存**。`EntryFace` 只 memo 住 kit（translator、hook、store、slot face）；`owner` 里的 `open`、当前选中这类每次渲染都会变，缓存住会把组件冻在第一次渲染。
+- **标准 prop 会被 owner 覆盖**。slot 渲染器把 root 标准 props 一并交给座位，所以座位上也有 `useWorkspaces`；域包要让自己的合成分支生效，就得在 owner 里摘掉同名键。
+
+工作区域包对 picker 暴露的扩展点是 `ctx.protonWorkspace.addPickerExtras({ rows, pick, selectedId? })`：`rows` 是 observable，`pick` 返回 true 表示这一行不是本机 Workspace（不建 Session）。没有注册时 picker 与官方完全一致。
 
 ## 渲染顺序
 
