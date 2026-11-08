@@ -27,6 +27,7 @@ declare module 'dsh-proton/client' {
 | `workspace.list` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces`（含子槽 `directoryFlow`） |
 | `workspace.directoryFlow` | `DirectoryFlowContext` | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces.directoryFlow` 与 `conversation.hero.workspace.directoryFlow` |
 | `hero.workspace` | `Record<string, unknown>`（owner props） | `dsh-proton-workspace` | 是：`conversation.hero.workspace`（只换 kit，不换组件） |
+| `composer.bar` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 是：`conversation.composer.bar`（只换 kit 的一个成员：提交动词） |
 
 官方槽位与 `DirectoryFlowContext` 都只出现在适配包里；域包通过 `registerDecorator` 参与，不 import `ui-workspace`。
 
@@ -86,6 +87,30 @@ ctx.proton.subscribe(listener)  // 返回取消订阅函数
 - **标准 prop 会被 owner 覆盖**。slot 渲染器把 root 标准 props 一并交给座位，所以座位上也有 `useWorkspaces`；域包要让自己的合成分支生效，就得在 owner 里摘掉同名键。
 
 工作区域包对 picker 暴露的扩展点是 `ctx.protonWorkspace.addPickerExtras({ rows, pick, selectedId? })`：`rows` 是 observable，`pick` 返回 true 表示这一行不是本机 Workspace（不建 Session）。没有注册时 picker 与官方完全一致。
+
+`EntryKitSources` 的完整成员：
+
+```ts
+interface EntryKitSources {
+  standard?: Record<string, unknown>   // root 标准 kit（use* hooks、renderFactorySlot）
+  translate?: (namespace: string) => (key: string) => string
+  storeOf?: (entry, sessionId?) => { useStore, actions } | undefined
+  draw?: (entry, owner) => ReactNode   // 整个换掉渲染，不走 kit
+  kitTap?: (kit, entry, ownerRef) => Record<string, unknown>  // 换 kit 里的成员
+  scope?: { sessionId?: string }       // 会话作用域，交给 inject 工厂
+  owner?: Record<string, unknown>      // 逐次 owner props
+}
+```
+
+### 会话作用域的座位：scope、standard、kitTap
+
+`conversation.composer.bar` 是 `session-maybe` 槽。接管它要额外交待三件事，否则 entry 会崩或子槽缺失（`dsh-proton-adapter-dsh` 的 composer 座位是完整示例）：
+
+- **scope.sessionId**：宿主渲染器把会话 id 作为 inject 的第一个参数传入（`InjectParams`：session 槽 `[sessionId]`，entry 带 store 时再加 `actions`）。质子的座位没有作用域，必须由域包提供 `scope: { sessionId }`；`EntryFace` 按 session 缓存 inject 结果，session 变了重新执行。
+- **standard 下传**：座位里的子槽（权限、计划、附件…）由 `renderSlot` 渲染，需要 root 标准 kit。渲染器把标准 props 交给 occupant，域包把它们（`use*` 与 `renderFactorySlot`）作为 `standard` 传给 `entryFace`，子槽才拿得到 `useProjection` 这类 hook。
+- **kitTap**：在 kit memo 内执行，可换掉某个成员再交给组件。域包用它在提交前插一层询问（`ctx.bail`），没人认领就调用原函数，官方行为不变。`ownerRef.current` 是本次渲染的 owner props，避免把逐次数据写进 memo。
+
+注意：`StoredEntry.options` 只有 `key` / `id` / `order` / `label` / `priority`，**没有槽名**，所以按 entry 认领的 provider 无法区分座位。单座位接管直接在 outlet 的 `render` 里调 `ctx.proton.entryFace(entry, sources)`，不经过 `addEntrySources`。
 
 ## 渲染顺序
 

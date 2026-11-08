@@ -29,12 +29,26 @@ export interface EntryKitSources {
    * Resolve the entry's declared store into the two props the host would bind:
    * `useStore` and `actions`.
    */
-  storeOf?: (entry: StoredEntry) => { useStore: unknown, actions: unknown } | undefined
+  storeOf?: (entry: StoredEntry, sessionId?: string | undefined) => { useStore: unknown, actions: unknown } | undefined
+  /**
+   * Wrap the assembled kit before the entry receives it (memoized with the kit).
+   * A domain uses this to replace one kit member with its own delegating face —
+   * e.g. a submit entry that first offers the action to other plugins and only
+   * then calls the shipped behavior. `owner` is a live ref: the wrapper may be
+   * long-lived, while the seat's owner props change every render.
+   */
+  kitTap?: (kit: Record<string, unknown>, entry: StoredEntry, owner: { current: Record<string, unknown> }) => Record<string, unknown>
   /**
    * Draw the entry outright instead of assembling the host's kit for it. Providers
    * use this when the shipped component cannot be driven through kit props alone.
    */
   draw?: (entry: StoredEntry, owner: Record<string, unknown>) => ReactNode
+  /**
+   * Session the seat is rendered for. The host passes it to a session-scoped
+   * entry's inject factory (see `InjectParams`); a takeover has to pass the same
+   * argument, or an entry whose inject resolves that session fails on undefined.
+   */
+  scope?: { sessionId?: string | undefined }
   /** Owner props from whoever renders the slot. */
   owner?: Record<string, unknown>
 }
@@ -127,7 +141,7 @@ function shallowEqual(left: unknown, right: unknown): boolean {
 /** How deep child slots may nest before this face gives up. */
 const MAX_DEPTH = 8
 
-const injectCache = new WeakMap<StoredEntry, Record<string, unknown>>()
+const injectCache = new WeakMap<StoredEntry, Map<string, Record<string, unknown>>>()
 const entryKeys = new WeakMap<StoredEntry, number>()
 let nextEntryKey = 0
 
@@ -152,12 +166,26 @@ function keyOf(entry: StoredEntry): number {
  * @param entry - the stored entry.
  * @returns injected props.
  */
-function injectedOf(entry: StoredEntry): Record<string, unknown> {
-  const cached = injectCache.get(entry)
+function injectedOf(
+  entry: StoredEntry,
+  bound: { actions?: unknown } | undefined,
+  scope: { sessionId?: string | undefined } | undefined,
+): Record<string, unknown> {
+  let perEntry = injectCache.get(entry)
+  if (perEntry === undefined) {
+    perEntry = new Map()
+    injectCache.set(entry, perEntry)
+  }
+  const key = (scope?.sessionId ?? '') + (bound === undefined ? '' : '\u0000store')
+  const cached = perEntry.get(key)
   if (cached !== undefined) return cached
-  const inject = entry.inject
-  const injected = inject === undefined ? {} : (inject as () => Record<string, unknown>)()
-  injectCache.set(entry, injected)
+  const inject = entry.inject as ((...args: unknown[]) => Record<string, unknown>) | undefined
+  let injected: Record<string, unknown>
+  if (inject === undefined) injected = {}
+  else if (scope === undefined) injected = inject()
+  else if (entry.store !== undefined) injected = inject(scope.sessionId, bound?.actions)
+  else injected = inject(scope.sessionId)
+  perEntry.set(key, injected)
   return injected
 }
 
@@ -212,7 +240,8 @@ export function kitOf(
   sources: EntryKitSources = {},
   depth = 0,
 ): Record<string, unknown> {
-  const injected = injectedOf(entry)
+  const bound = entry.store === undefined ? undefined : sources.storeOf?.(entry, sources.scope?.sessionId)
+  const injected = injectedOf(entry, bound, sources.scope)
   const kit: Record<string, unknown> = {
     ...sources.standard,
     ...injected,
@@ -254,7 +283,6 @@ export function kitOf(
     kit['t'] = translate(entry.locale)
   }
   if (entry.store !== undefined) {
-    const bound = sources.storeOf?.(entry)
     if (bound === undefined) {
       throw new Error(`Proton entry face: entry declares a store but no store resolver was supplied (${entry.registrant ?? 'unknown registrant'})`)
     }
@@ -288,17 +316,24 @@ export function EntryFace({ ctx, entry, sources }: {
   // which its effects treat as a change and answer with another render.
   const latest = useRef(sources)
   latest.current = sources
+  const owner = latest.current?.owner ?? {}
   // Owner props are per-render data (a menu's `open`, the current selection, the
   // anchor ref): memoizing them would freeze the entry in the render that first
   // mounted it. Only the kit — translator, hooks, store binding, slot face — is
   // memoized, because rebuilding those per render hands the component new
   // function dependencies every frame.
+  const ownerRef = useRef(owner)
+  ownerRef.current = owner
+  // The session is part of the kit, not of the owner props: a different session
+  // means a different inject face (keyboard, scope services) and a different
+  // store instance, so the memo must follow it.
+  const sessionId = latest.current?.scope?.sessionId
   const kit = useMemo(() => {
     const current = latest.current ?? {}
-    const { owner: _owner, ...rest } = current
-    return kitOf(ctx, entry, rest)
-  }, [ctx, entry])
-  const owner = latest.current?.owner ?? {}
+    const { owner: _owner, kitTap, ...rest } = current
+    const assembled = kitOf(ctx, entry, rest)
+    return kitTap === undefined ? assembled : kitTap(assembled, entry, ownerRef)
+  }, [ctx, entry, sessionId])
   const Component = entry.component as ComponentType<Record<string, unknown>>
   return createElement(Component, { key: keyOf(entry), ...kit, ...owner })
 }
