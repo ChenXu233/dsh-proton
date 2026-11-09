@@ -36,7 +36,7 @@
       "patch": "./cordis.patch.yml"
     },
     "engines": {
-      "dsh": ">=0.2.1-rc.5"
+      "dsh": ">=0.2.2-rc.1"
     },
     "client": {
       "platform": "web",
@@ -52,14 +52,14 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "react": "^18.2.0",
-    "@deepseek-ai/dsh-client-store": "^0.2.1-rc.5"
+    "@deepseek-ai/dsh-client-store": "^0.2.2-rc.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-workspace": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.2-rc.1",
     "vitest": "^4.1.8",
-    "@deepseek-ai/dsh-client-store": "0.2.1-rc.5"
+    "@deepseek-ai/dsh-client-store": "0.2.2-rc.1"
   },
   "engines": {
     "node": ">=20"

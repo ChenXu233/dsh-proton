@@ -23,6 +23,11 @@ export interface PickerRow {
   readonly workspaceId: string
   /** Menu label. The picker has no separate machine cell, so the owner chooses what to spell here. */
   readonly title: string
+  /**
+   * Canonical path of the Workspace. The shipped picker disambiguates same-titled
+   * rows by their trailing path segments, so a row without one crashes the menu.
+   */
+  readonly path: string
 }
 
 /** What a domain adds to the picker. */
@@ -162,5 +167,6 @@ export function isPickerRow(value: unknown): value is PickerRow {
   return typeof value === 'object' && value !== null
     && typeof (value as { workspaceId?: unknown }).workspaceId === 'string'
     && typeof (value as { title?: unknown }).title === 'string'
+    && typeof (value as { path?: unknown }).path === 'string'
 }
 

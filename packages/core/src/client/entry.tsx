@@ -200,6 +200,7 @@ function createSlotFace(
   ctx: Context,
   sources: EntryKitSources,
   depth: number,
+  ownerRef?: { current: Record<string, unknown> },
 ): (key: string, options?: ChildSlotOptions) => ReactNode {
   return (key, options = {}) => {
     if (depth >= MAX_DEPTH) {
@@ -217,9 +218,15 @@ function createSlotFace(
     const rendered: ReactNode[] = []
     for (const child of winners) {
       if (only !== undefined && child.options?.id !== only) continue
+      // The seat's owner props carry the renderer's standard kit (the root
+      // `use*` hooks every entry may need). Children rendered by the shipped
+      // component expect the same kit, and a real renderer injects it; a face
+      // must hand it down explicitly, from the live owner rather than the
+      // memoized one.
+      const childSources = ownerRef === undefined ? sources : { ...sources, owner: ownerRef.current }
       rendered.push(createElement(
         child.component as ComponentType<Record<string, unknown>>,
-        { key: keyOf(child), ...kitOf(ctx, child, sources, depth + 1), ...ownerProps, ...(hookContext === undefined ? {} : { hookContext }) },
+        { key: keyOf(child), ...kitOf(ctx, child, childSources, depth + 1), ...ownerProps, ...(hookContext === undefined ? {} : { hookContext }) },
       ))
     }
     return rendered.length === 0 ? (fallback ?? null) : rendered
@@ -239,6 +246,7 @@ export function kitOf(
   entry: StoredEntry,
   sources: EntryKitSources = {},
   depth = 0,
+  ownerRef?: { current: Record<string, unknown> },
 ): Record<string, unknown> {
   const bound = entry.store === undefined ? undefined : sources.storeOf?.(entry, sources.scope?.sessionId)
   const injected = injectedOf(entry, bound, sources.scope)
@@ -290,7 +298,7 @@ export function kitOf(
     kit['actions'] = bound.actions
   }
   if (entry.children !== undefined) {
-    kit['renderSlot'] = createSlotFace(ctx, sources, depth)
+    kit['renderSlot'] = createSlotFace(ctx, sources, depth, ownerRef)
   }
   return kit
 }
@@ -331,7 +339,7 @@ export function EntryFace({ ctx, entry, sources }: {
   const kit = useMemo(() => {
     const current = latest.current ?? {}
     const { owner: _owner, kitTap, ...rest } = current
-    const assembled = kitOf(ctx, entry, rest)
+    const assembled = kitOf(ctx, entry, rest, 0, ownerRef)
     return kitTap === undefined ? assembled : kitTap(assembled, entry, ownerRef)
   }, [ctx, entry, sessionId])
   const Component = entry.component as ComponentType<Record<string, unknown>>
