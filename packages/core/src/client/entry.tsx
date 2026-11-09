@@ -49,6 +49,18 @@ export interface EntryKitSources {
    * argument, or an entry whose inject resolves that session fails on undefined.
    */
   scope?: { sessionId?: string | undefined }
+  /**
+   * Occurrence context for slot hook factories: the value the host renderer
+   * hands a declared `hooks` factory alongside the standard kit. A factory
+   * bound without it sees undefined fields and its hook crashes on first use.
+   */
+  hookContext?: unknown
+  /**
+   * Slot key this entry belongs to. The host also applies the *slot's own*
+   * declared inject to every entry of that cell (a chat node seat receives its
+   * turn-data hooks that way); the key lets the face resolve it.
+   */
+  slot?: string
   /** Owner props from whoever renders the slot. */
   owner?: Record<string, unknown>
 }
@@ -88,6 +100,46 @@ function hookFor(source: ObservableLike) {
   const built = selectorHook(source)
   hookCache.set(source, built)
   return built
+}
+
+/** Stable absent source: a missing key keeps one hook identity instead of remounting. */
+const ABSENT_SOURCE: ObservableLike = {
+  getSnapshot: () => undefined,
+  subscribe: () => () => {},
+}
+
+const identity = <T,>(value: T): T => value
+
+/** Declared hook factory: the host calls it with the standard kit and the occurrence context. */
+export type SlotHookFactory = (standard: Record<string, unknown>, hookContext: unknown) => unknown
+
+/** Open-key source family: one key (and optional member) resolves to its observable. */
+export type KeyedSource = (key: string, member?: string) => ObservableLike | undefined
+
+/**
+ * Resolve one keyed source the way the host renderer does.
+ *
+ * The host's keyed hook takes either `(key, member)` for a plain read or
+ * `(key, selector?, equal?)` for a projected one; a wrapper that only ever
+ * returns a hook (or only ever reads a member) hands the component the wrong
+ * value and its selectors silently stop applying.
+ * @param source - keyed resolver from the entry's declared keyed hooks.
+ * @returns a selector hook over the resolved source.
+ */
+function keyedHookFor(source: KeyedSource) {
+  return function useKeyed<T>(
+    keyOrSelector: string,
+    second?: string | ((value: unknown) => T) | ((left: unknown, right: unknown) => boolean),
+  ): T | undefined {
+    const member = typeof second === 'string' ? second : undefined
+    const selector = typeof second === 'function'
+      ? second as (value: unknown) => T
+      : undefined
+    const found = member === undefined ? source(keyOrSelector) : source(keyOrSelector, member)
+    // Hook order must not depend on data: resolve the source, then use its
+    // cached hook even when the key has no value yet.
+    return hookFor(found ?? ABSENT_SOURCE)((selector ?? identity) as (snapshot: never) => T)
+  }
 }
 
 function selectorHook(source: ObservableLike) {
@@ -189,8 +241,65 @@ function injectedOf(
   return injected
 }
 
+/** Chain dispatch options: the owner fallback for the all-decline case. */
+export interface ChildChainOptions {
+  fallback?: ReactNode
+  /** Render only the owner fallback without resolving the chain (composer overlay seats). */
+  fallbackOnly?: boolean
+  /** Keep the fallback mounted (hidden) instead of unmounting it when an entry is elected. */
+  overlay?: boolean
+}
+
+/**
+ * Render one child entry with the kit the host renderer would hand it.
+ * @param ctx - client root context.
+ * @param child - the stored registration.
+ * @param sources - kit sources inherited from the parent.
+ * @param depth - current nesting depth.
+ * @param ownerRef - live owner props of the parent entry.
+ * @param ownerProps - owner props this render site supplies.
+ * @param hookContext - occurrence context for declared hook factories.
+ * @returns the rendered child.
+ */
+function renderChild(
+  ctx: Context,
+  child: StoredEntry,
+  slot: string,
+  sources: EntryKitSources,
+  depth: number,
+  ownerRef: { current: Record<string, unknown> } | undefined,
+  ownerProps: Record<string, unknown>,
+  hookContext: unknown,
+): ReactNode {
+  // The seat's owner props carry the renderer's standard kit (the root
+  // `use*` hooks every entry may need). Children rendered by the shipped
+  // component expect the same kit, and a real renderer injects it; a face
+  // must hand it down explicitly, from the live owner rather than the
+  // memoized one.
+  const childSources: EntryKitSources = {
+    ...sources,
+    slot,
+    ...(hookContext === undefined ? {} : { hookContext }),
+    ...(ownerRef === undefined ? {} : { owner: ownerRef.current }),
+  }
+  return createElement(
+    child.component as ComponentType<Record<string, unknown>>,
+    {
+      key: keyOf(child),
+      ...kitOf(ctx, child, childSources, depth + 1),
+      ...ownerProps,
+      ...(hookContext === undefined ? {} : { hookContext }),
+    },
+  )
+}
+
 /**
  * Build the props a child slot's winners receive.
+ *
+ * The host's own signature is `renderSlot(key, owner, opts)`: owner props and
+ * dispatch options are separate arguments. Treating the second argument as the
+ * options bag silently dropped `entryKey` (every keyed renderer mounted at
+ * once) and the third argument entirely.
  * @param ctx - client root context.
  * @param sources - kit sources inherited from the parent.
  * @param depth - current nesting depth.
@@ -201,36 +310,171 @@ function createSlotFace(
   sources: EntryKitSources,
   depth: number,
   ownerRef?: { current: Record<string, unknown> },
-): (key: string, options?: ChildSlotOptions) => ReactNode {
-  return (key, options = {}) => {
+): (key: string, owner?: Record<string, unknown>, options?: ChildSlotOptions) => ReactNode {
+  return (key, owner = {}, options = {}) => {
     if (depth >= MAX_DEPTH) {
       throw new Error(`Proton entry face: child slots nested deeper than ${MAX_DEPTH} at "${key}"`)
     }
     const slots = ctx.slots as unknown as {
       entriesOfSlot(slot: string): readonly StoredEntry[]
     }
-    // `renderSlot(key, owner)` hands the caller's owner props to the child entry;
-    // only these four keys are machinery. Dropping the rest leaves a picker with
-    // no `open`, no `onPick` and no anchor — it renders nothing at all.
-    const { entryKey: _entryKey, only, fallback, hookContext, ...ownerProps } = options as ChildSlotOptions & Record<string, unknown>
+    const { entryKey, only, fallback, hookContext } = options
     const winners = slots.entriesOfSlot(key)
     if (winners.length === 0) return fallback ?? null
+    // A keyed seat is dispatched by the caller's `entryKey`: rendering every
+    // registered renderer for one row stacks all message kinds on top of each
+    // other, and every one of them receives props for another kind's data.
+    const keyed = winners.some(child => child.options?.key !== undefined)
     const rendered: ReactNode[] = []
     for (const child of winners) {
+      if (keyed && (entryKey === undefined || child.options?.key !== entryKey)) continue
       if (only !== undefined && child.options?.id !== only) continue
-      // The seat's owner props carry the renderer's standard kit (the root
-      // `use*` hooks every entry may need). Children rendered by the shipped
-      // component expect the same kit, and a real renderer injects it; a face
-      // must hand it down explicitly, from the live owner rather than the
-      // memoized one.
-      const childSources = ownerRef === undefined ? sources : { ...sources, owner: ownerRef.current }
-      rendered.push(createElement(
-        child.component as ComponentType<Record<string, unknown>>,
-        { key: keyOf(child), ...kitOf(ctx, child, childSources, depth + 1), ...ownerProps, ...(hookContext === undefined ? {} : { hookContext }) },
-      ))
+      rendered.push(renderChild(ctx, child, key, sources, depth, ownerRef, owner, hookContext))
     }
     return rendered.length === 0 ? (fallback ?? null) : rendered
   }
+}
+
+/**
+ * Build the props a chain child slot receives.
+ *
+ * Chain routing is a pure selector pass: entries are tried in priority order,
+ * the first non-null `select(owner)` result is elected and receives `matched`,
+ * and an all-decline chain renders the owner fallback.
+ * @param ctx - client root context.
+ * @param sources - kit sources inherited from the parent.
+ * @param depth - current nesting depth.
+ * @returns a `renderSlotChain`-shaped function.
+ */
+function createChainFace(
+  ctx: Context,
+  sources: EntryKitSources,
+  depth: number,
+  ownerRef?: { current: Record<string, unknown> },
+): (key: string, owner?: Record<string, unknown>, options?: ChildChainOptions) => ReactNode {
+  return (key, owner = {}, options = {}) => {
+    if (depth >= MAX_DEPTH) {
+      throw new Error(`Proton entry face: child slots nested deeper than ${MAX_DEPTH} at "${key}"`)
+    }
+    if (options.fallbackOnly === true) return options.fallback ?? null
+    const slots = ctx.slots as unknown as {
+      entries(slot: string): readonly StoredEntry[]
+    }
+    const entries = [...slots.entries(key)]
+      .sort((left, right) => (left.options?.priority ?? 0) - (right.options?.priority ?? 0))
+    let elected: ReactNode = null
+    for (const entry of entries) {
+      const select = (entry as unknown as { select?: (candidate: object) => unknown }).select
+      if (select === undefined) continue
+      let matched: unknown
+      try {
+        matched = select(owner)
+      } catch {
+        // A throwing selector is a registrant contract breach: decline, keep
+        // the chain and its fallback intact rather than blacking out the seat.
+        continue
+      }
+      if (matched === null) continue
+      elected = renderChild(ctx, entry, key, sources, depth, ownerRef, { ...owner, matched }, undefined)
+      break
+    }
+    return elected ?? (options.fallback ?? null)
+  }
+}
+
+/**
+ * One declared inject face, as the host consumes it: plain props, observable
+ * hooks, and hooks declared as `(standard, hookContext) => hook` factories.
+ */
+interface InjectFace {
+  hooks?: Record<string, ObservableLike | SlotHookFactory>
+  keyedHooks?: Record<string, KeyedSource | undefined>
+  [key: string]: unknown
+}
+
+/** Bound factory hooks, per occurrence context, so a re-render reuses them. */
+const factoryHookCache = new WeakMap<object, WeakMap<object, Record<string, unknown>>>()
+
+/**
+ * Bind one inject face onto the props object.
+ *
+ * Declared hooks are not props: the host synthesizes one `use<Name>` selector
+ * hook per observable source, calls a factory with the standard kit and the
+ * occurrence context, and wraps a keyed family in the host's `(key, selector)`
+ * call shape. Handing over the raw tables leaves components calling undefined.
+ * @param kit - props being assembled (mutated).
+ * @param face - the entry's or the cell's declared inject result.
+ * @param standard - standard kit handed to factories.
+ * @param hookContext - occurrence context handed to factories.
+ */
+function applyInjected(
+  kit: Record<string, unknown>,
+  face: InjectFace,
+  standard: Record<string, unknown>,
+  hookContext: unknown,
+): void {
+  const { hooks, keyedHooks, ...rest } = face
+  Object.assign(kit, rest)
+  if (hooks !== undefined) {
+    const cached = factoryHooks(hooks, standard, hookContext)
+    for (const [name, source] of Object.entries(hooks)) {
+      kit[standardHookPropName(name)] = typeof source === 'function'
+        ? cached?.[name] ?? source(standard, hookContext)
+        : hookFor(source)
+    }
+  }
+  if (keyedHooks !== undefined) {
+    for (const [name, source] of Object.entries(keyedHooks)) {
+      if (source !== undefined) kit[standardHookPropName(name)] = keyedHookFor(source)
+    }
+  }
+}
+
+/**
+ * Factories rebuilt every render hand the component a fresh hook identity, so
+ * memoized children re-render on every parent pass. Cache per hookContext
+ * object; a context that is not an object simply gets fresh factories.
+ * @param hooks - declared factories and observables.
+ * @param standard - standard kit handed to factories.
+ * @param hookContext - occurrence context.
+ * @returns the bound factory props, when cacheable.
+ */
+function factoryHooks(
+  hooks: Record<string, ObservableLike | SlotHookFactory>,
+  standard: Record<string, unknown>,
+  hookContext: unknown,
+): Record<string, unknown> | undefined {
+  if (hookContext === null || typeof hookContext !== 'object') return undefined
+  let perContext = factoryHookCache.get(hookContext)
+  if (perContext === undefined) {
+    perContext = new WeakMap()
+    factoryHookCache.set(hookContext, perContext)
+  }
+  const key = hooks as object
+  const cached = perContext.get(key)
+  if (cached !== undefined) return cached
+  const bound: Record<string, unknown> = {}
+  for (const [name, source] of Object.entries(hooks)) {
+    if (typeof source === 'function') bound[name] = source(standard, hookContext)
+  }
+  perContext.set(key, bound)
+  return bound
+}
+
+/** Resolve one slot's declared inject face, when it has one. */
+function slotInjectOf(ctx: Context, slot: string): InjectFace | undefined {
+  // `spec` is the registry's public lookup; `specOf` only exists on the
+  // renderer's internal host face, which a takeover cannot reach.
+  const slots = ctx.slots as unknown as {
+    spec?(key: string): { inject?: unknown } | undefined
+    specDynamic?(key: string): { inject?: unknown } | undefined
+  }
+  const declared = (slots.spec?.(slot) ?? slots.specDynamic?.(slot))?.inject
+  if (declared === undefined) return undefined
+  if (typeof declared === 'function') {
+    return (declared as () => InjectFace)()
+  }
+  return declared as InjectFace
 }
 
 /**
@@ -249,40 +493,15 @@ export function kitOf(
   ownerRef?: { current: Record<string, unknown> },
 ): Record<string, unknown> {
   const bound = entry.store === undefined ? undefined : sources.storeOf?.(entry, sources.scope?.sessionId)
-  const injected = injectedOf(entry, bound, sources.scope)
-  const kit: Record<string, unknown> = {
-    ...sources.standard,
-    ...injected,
-    ...sources.owner,
-  }
-  // Declared hook sources are not props: the host synthesizes one `use<Name>`
-  // selector hook per source and passes that. Handing over the raw table leaves
-  // the component calling `undefined`.
-  const hooks = injected['hooks'] as Record<string, ObservableLike> | undefined
-  if (hooks !== undefined) {
-    for (const [name, source] of Object.entries(hooks)) {
-      kit[standardHookPropName(name)] = hookFor(source)
-    }
-  }
-  const keyedHooks = injected['keyedHooks'] as Record<string, (key: string, member?: string) => ObservableLike | undefined> | undefined
-  if (keyedHooks !== undefined) {
-    for (const [name, source] of Object.entries(keyedHooks)) {
-      // A keyed hook returns a hook, and the caller may render with it directly.
-      // Returning a fresh function per call hands React a different hook on every
-      // render — hook order breaks and the component loops.
-      const perKey = new Map<string, ReturnType<typeof hookFor>>()
-      kit[standardHookPropName(name)] = (key: string, member?: string) => {
-        const id = member === undefined ? key : key + '\u0000' + member
-        const cached = perKey.get(id)
-        if (cached !== undefined) return cached
-        const found = source(key, member)
-        if (found === undefined) return undefined
-        const built = hookFor(found)
-        perKey.set(id, built)
-        return built
-      }
-    }
-  }
+  const standard = (sources.standard ?? {}) as Record<string, unknown>
+  const kit: Record<string, unknown> = { ...standard }
+  applyInjected(kit, injectedOf(entry, bound, sources.scope), standard, sources.hookContext)
+  // The cell's own inject applies to every entry in it and wins over the
+  // entry's (the host spreads it after): a chat node seat gets its turn-data
+  // hooks from here, not from its registration.
+  const cell = sources.slot === undefined ? undefined : slotInjectOf(ctx, sources.slot)
+  if (cell !== undefined) applyInjected(kit, cell, standard, sources.hookContext)
+  Object.assign(kit, sources.owner)
   if (entry.locale !== undefined) {
     const translate = sources.translate
     if (translate === undefined) {
@@ -299,6 +518,7 @@ export function kitOf(
   }
   if (entry.children !== undefined) {
     kit['renderSlot'] = createSlotFace(ctx, sources, depth, ownerRef)
+    kit['renderSlotChain'] = createChainFace(ctx, sources, depth, ownerRef)
   }
   return kit
 }

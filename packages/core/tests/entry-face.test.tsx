@@ -32,6 +32,7 @@ function contextOver(core: SlotCore): Context {
       entries: (key: string) => core.entries(key),
       subscribe: (key: string, listener: () => void) => core.subscribe(key, listener),
       getVersion: (key: string) => core.getVersion(key),
+      spec: (key: string) => core.spec(key as never),
     },
   } as unknown as Context
 }
@@ -79,4 +80,44 @@ it('fails loudly when a declared store has no resolver', () => {
   const core = coreWithSlots()
   const entry = registered(core, SLOT, { store: { create: () => ({}) } }, () => <span>never</span>)
   expect(() => render(createElement(EntryFace, { ctx: contextOver(core), entry }))).toThrow(/no store resolver/)
+})
+
+it('applies the cell inject to its entries and binds hook factories from the occurrence context', () => {
+  const core = coreWithSlots()
+  const parent = registered(core, SLOT, {
+    children: {
+      [CHILD]: {
+        kind: 'single',
+        scope: 'root',
+        // The host applies a cell's own inject to every entry of that cell; a
+        // chat node seat receives its turn-data hooks exactly this way.
+        inject: {
+          hooks: {
+            cellData: (_standard: unknown, context: unknown) => (key: string) => `${String(context)}:${key}`,
+          },
+        },
+      },
+    },
+  }, (props: Record<string, unknown>) => (
+    <div>{(props.renderSlot as (key: string, owner: object, opts: object) => unknown)(CHILD, {}, { hookContext: 'occ' }) as never}</div>
+  ))
+  registered(core, CHILD, {}, (props: Record<string, unknown>) => (
+    <b>{String((props.useCellData as (key: string) => string)('row'))}</b>
+  ))
+  render(createElement(EntryFace, { ctx: contextOver(core), entry: parent }))
+  expect(screen.getByText('occ:row')).toBeTruthy()
+})
+
+it('renders only the keyed child the caller names', () => {
+  const core = coreWithSlots()
+  const parent = registered(core, SLOT, {
+    children: { [CHILD]: { kind: 'keyed', scope: 'root' } },
+  }, (props: Record<string, unknown>) => (
+    <div>{(props.renderSlot as (key: string, owner: object, opts: object) => unknown)(CHILD, {}, { entryKey: 'user' }) as never}</div>
+  ))
+  registered(core, CHILD, { key: 'user' }, () => <b>user-row</b>)
+  registered(core, CHILD, { key: 'tool' }, () => <b>tool-row</b>)
+  render(createElement(EntryFace, { ctx: contextOver(core), entry: parent }))
+  expect(screen.getByText('user-row')).toBeTruthy()
+  expect(screen.queryByText('tool-row')).toBeNull()
 })
