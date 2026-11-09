@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { EntryKitSources } from 'dsh-proton/client'
 import { isPickerEntry, pickerSources } from './picker'
 import type { PickerExtras } from './picker'
-import type {} from './index'
+import type { HiddenSessionSource } from './index'
 
 /** Observable source the host would expose as a selector hook. */
 interface ObservableLike<T = unknown> {
@@ -121,6 +121,113 @@ function storeSeat(entry: RawEntry): { useStore: unknown, actions: unknown } | u
   return bound
 }
 
+/** The slice of the shipped session list the filter rewrites. */
+interface SessionListLike {
+  ids?: readonly string[]
+  byId?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+/** The slice of the workspace list the filter rewrites. */
+interface WorkspaceListLike {
+  items?: readonly { sessionIds?: readonly string[], [key: string]: unknown }[]
+  [key: string]: unknown
+}
+
+/** Subscribe one hidden-session source to React. */
+function useHidden(source: HiddenSessionSource): readonly string[] {
+  const subscribe = useRef((listener: () => void) => source.subscribe(listener)).current
+  const getSnapshot = useRef(() => source.getSnapshot()).current
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+/**
+ * Wrap the session-list hook so hidden Sessions leave both the order and the
+ * summary map.
+ *
+ * Removing an id from the Workspace membership alone is not enough: the shipped
+ * tree treats every summary no Workspace accounts for as an ungrouped Session
+ * and would draw the row anyway.
+ * @param base - the host's own hook.
+ * @param hidden - ids to hide.
+ * @returns the filtering hook, with a stable result for unchanged inputs.
+ */
+function sessionsWithout(
+  base: (selector: (snapshot: never) => unknown) => unknown,
+  hidden: HiddenSessionSource,
+): (selector: (snapshot: never) => unknown) => unknown {
+  let lastList: unknown
+  let lastIds: readonly string[] | undefined
+  let lastResult: SessionListLike | undefined
+  return function useSessionsFiltered<T>(selector: (snapshot: never) => T): T {
+    const ids = useHidden(hidden)
+    const list = base(value => value) as SessionListLike
+    let result = list
+    if (ids.length > 0) {
+      if (result !== lastList || ids !== lastIds || lastResult === undefined) {
+        lastList = result
+        lastIds = ids
+        const hide = new Set(ids)
+        const byId: Record<string, unknown> = {}
+        for (const [id, summary] of Object.entries(list.byId ?? {})) {
+          if (!hide.has(id)) byId[id] = summary
+        }
+        lastResult = { ...list, ids: (list.ids ?? []).filter(id => !hide.has(id)), byId }
+      }
+      result = lastResult ?? list
+    }
+    return selector === undefined ? result as T : selector(result as never)
+  }
+}
+
+/**
+ * Wrap the workspace-list hook so hidden Sessions leave every Workspace's
+ * membership (the tree resolves rows from those ids).
+ * @param base - the host's own hook.
+ * @param hidden - ids to hide.
+ * @returns the filtering hook, with a stable result for unchanged inputs.
+ */
+function workspacesWithout(
+  base: (selector: (snapshot: never) => unknown) => unknown,
+  hidden: HiddenSessionSource,
+): (selector: (snapshot: never) => unknown) => unknown {
+  let lastList: unknown
+  let lastIds: readonly string[] | undefined
+  let lastResult: WorkspaceListLike | undefined
+  return function useWorkspacesFiltered<T>(selector: (snapshot: never) => T): T {
+    const ids = useHidden(hidden)
+    const list = base(value => value) as WorkspaceListLike
+    let result = list
+    if (ids.length > 0) {
+      if (result !== lastList || ids !== lastIds || lastResult === undefined) {
+        lastList = result
+        lastIds = ids
+        const hide = new Set(ids)
+        lastResult = {
+          ...list,
+          items: (list.items ?? []).map((workspace) => {
+            const members = workspace.sessionIds
+            if (members === undefined || !members.some(id => hide.has(id))) return workspace
+            return { ...workspace, sessionIds: members.filter(id => !hide.has(id)) }
+          }),
+        }
+      }
+      result = lastResult ?? list
+    }
+    return selector === undefined ? result as T : selector(result as never)
+  }
+}
+
+/** Rewrite the kit's two list hooks when the composition hides Sessions. */
+function tapListHooks(kit: Record<string, unknown>, hidden: HiddenSessionSource): Record<string, unknown> {
+  const tapped = { ...kit }
+  const sessions = kit['useSessions'] as ((selector: (snapshot: never) => unknown) => unknown) | undefined
+  const workspaces = kit['useWorkspaces'] as ((selector: (snapshot: never) => unknown) => unknown) | undefined
+  if (sessions !== undefined) tapped['useSessions'] = sessionsWithout(sessions, hidden)
+  if (workspaces !== undefined) tapped['useWorkspaces'] = workspacesWithout(workspaces, hidden)
+  return tapped
+}
+
 /**
  * Claim one entry and describe the kit the host renderer would have synthesized.
  *
@@ -135,6 +242,7 @@ export function workspaceEntrySources(
   ctx: Context,
   entry: unknown,
   extrasOf: () => PickerExtras | undefined = () => undefined,
+  hiddenOf: () => HiddenSessionSource | undefined = () => undefined,
 ): EntryKitSources | undefined {
   const declared = entry as RawEntry
   if (declared.locale !== 'workspace') return undefined
@@ -159,9 +267,50 @@ export function workspaceEntrySources(
     )
   }
 
+  const base = workspaces === undefined ? undefined : selectorHook(workspaces.list)
   return {
-    standard: workspaces === undefined ? {} : { useWorkspaces: selectorHook(workspaces.list) },
-    translate,
-    storeOf: candidate => storeSeat(candidate as RawEntry),
+    // Drawing ourselves is what makes the hidden-Session filter possible: the
+    // renderer hands the seat its whole standard kit as owner props, and those
+    // are spread after the kit, so a kit-level override never wins.
+    draw: (target, owner) => {
+      const seat = owner as Record<string, unknown>
+      const split = splitSeatProps(seat)
+      const hidden = hiddenOf()
+      let standard: Record<string, unknown> = base === undefined
+        ? split.standard
+        : { ...split.standard, useWorkspaces: base }
+      if (hidden !== undefined) standard = tapListHooks(standard, hidden)
+      return ctx.proton.entryFace(target, {
+        translate,
+        storeOf: candidate => storeSeat(candidate as RawEntry),
+        standard,
+        owner: split.owner,
+      })
+    },
   }
+}
+
+/**
+ * Separate a seat's props into the standard kit and the seat-specific share.
+ *
+ * The slot renderer passes kit and owner props in one bag; only the seat share
+ * may travel on as owner props (they are spread last, so a kit member left
+ * here would override the kit the face assembled).
+ * @param seat - the seat's combined props.
+ * @returns the standard kit members and the remaining owner props.
+ */
+function splitSeatProps(seat: Record<string, unknown>): {
+  standard: Record<string, unknown>
+  owner: Record<string, unknown>
+} {
+  const standard: Record<string, unknown> = {}
+  const owner: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(seat)) {
+    const kit = /^use[A-Z]/u.test(key)
+      || key === 'renderFactorySlot' || key === 'renderSlot' || key === 'renderSlotChain'
+      || key === 'useStore' || key === 'actions' || key === 't'
+    if (kit) standard[key] = value
+    else owner[key] = value
+  }
+  return { standard, owner }
 }

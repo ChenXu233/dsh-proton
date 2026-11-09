@@ -27,6 +27,19 @@ declare module 'dsh-proton/client' {
   }
 }
 
+/**
+ * Local Sessions the list must not draw.
+ *
+ * The remote conversation page borrows a local blank Session as the shell for
+ * its composer; that Session is not a conversation on this machine and would
+ * otherwise appear under whichever local Workspace owns its directory. The page
+ * publishes it here while it owns the screen.
+ */
+export interface HiddenSessionSource {
+  getSnapshot(): readonly string[]
+  subscribe(listener: () => void): () => void
+}
+
 /** What the workspace domain offers its own consumers. */
 export interface WorkspaceServices extends WorkspaceSources {
   /**
@@ -49,6 +62,15 @@ export interface WorkspaceServices extends WorkspaceSources {
    * @returns disposer.
    */
   addPickerExtras(extras: PickerExtras): () => void
+  /**
+   * Hide local Sessions from the workspace list.
+   *
+   * One source per composition: the page that owns the screen is one, and two
+   * owners filtering the same list would make the visible set ambiguous.
+   * @param source - ids to hide, observable.
+   * @returns disposer.
+   */
+  hideSessions(source: HiddenSessionSource): () => void
 }
 
 /**
@@ -69,6 +91,7 @@ export const inject = ['slots', 'proton', 'locale', 'workspaces'] as const
 export function apply(ctx: Context): void {
   const sources = new WorkspaceSources()
   let pickerExtras: PickerExtras | undefined
+  let hiddenSessions: HiddenSessionSource | undefined
   const services: WorkspaceServices = Object.assign(sources, {
     addSection: (section: WorkspaceSection) => ctx.proton.registerContribution(
       WORKSPACE_LIST_REGION,
@@ -86,12 +109,18 @@ export function apply(ctx: Context): void {
         if (pickerExtras === extras) pickerExtras = undefined
       }
     },
+    hideSessions: (source: HiddenSessionSource) => {
+      hiddenSessions = source
+      return () => {
+        if (hiddenSessions === source) hiddenSessions = undefined
+      }
+    },
   })
   ctx.provide('protonWorkspace', services)
   // Draw the shipped workspace entry ourselves: it is the region fallback, and
   // only the entry's own renderer knows the kit it needs.
   ctx.effect(
-    () => ctx.proton.addEntrySources(entry => workspaceEntrySources(ctx, entry, () => pickerExtras)),
+    () => ctx.proton.addEntrySources(entry => workspaceEntrySources(ctx, entry, () => pickerExtras, () => hiddenSessions)),
     'proton-workspace: entry sources',
   )
   // Take the hero picker seat for the same reason as the sidebar one: the
