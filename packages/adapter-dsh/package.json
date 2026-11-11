@@ -1,6 +1,6 @@
 {
   "name": "dsh-proton-adapter-dsh",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "质子 · DSH 适配层：唯一知道官方 slot key 与 owner props 契约的包",
   "repository": {
     "type": "git",
@@ -29,6 +29,7 @@
   ],
   "scripts": {
     "build": "tsdown",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dsh": {

@@ -63,7 +63,7 @@ Outlet 采用接管时的 live winner 与接管后新注册的 entry；随后被
 
 ## 工作区域
 
-`dsh-proton-workspace` 只注册 `workspace.directoryFlow` Decorator，不注册替代 Renderer：
+`dsh-proton-workspace` 自己的注册有三处：`workspace.directoryFlow` 的 Decorator、`workspace.list` 的 section 接缝，以及 `hero.workspace` 座位（区域为空也占座，只换 kit 不换组件）。目录流的行为：
 
 - 初次打开显示「本机 / 已注册来源」选择。
 - 选本机 → 调用 `next()`，原生 OS picker 或官方 browse dialog 由原 entry 自己运行。
@@ -72,11 +72,24 @@ Outlet 采用接管时的 live winner 与接管后新注册的 entry；随后被
 
 来源由 backend 自己的适配包通过 `ctx.protonWorkspace.addSource()` 注册。本仓库不知道任何具体 backend，也不知道它会调哪些 HTTP —— 那是适配包与 backend 契约之间的事。
 
+## 座位与契约归属
+
+官方槽位 key 与 owner props 契约以 `dsh-proton-adapter-dsh` 的导出为准；域层服务（`WorkspaceServices`）由 `dsh-proton-workspace` 导出。同仓库的域包为了让两个 client bundle 各自独立，可以本地拼写 slot key，但要用测试钉住（`packages/workspace/tests/contract.test.ts`）。跨仓库的域包不享有这条例外，消费时用 `import type`，不要本地重声明：
+
+```ts
+import type {} from 'dsh-proton-adapter-dsh/client'
+import type { WorkspaceServices } from 'dsh-proton-workspace/client'
+```
+
+`import type` 在构建时被擦除，不产生运行时依赖，独立发版不受影响；它换来的是契约漂移变成编译错误。在本地抄一份同名类型会切断这道检查，问题只会在运行时出现。
+
+composer 座位不随适配包常驻：消费者调用 `ctx.protonComposer.addSubmitTap()` 申请，最后一份释放后撤走；没人申请时 composer 完全由官方渲染。
+
 ## 非目标
 
 - 不修改或 monkey patch 上游，不读 React internals，不搬 DOM。
 - 不自动支持所有官方 slot entry 形态（见「支持边界」）。
-- 不接管 `sidebar.workspaces`；真要接管时另建 `dsh-proton-workspace-seat` 并由域包调用，本仓库不提前建空壳。
+- 不替域包决定座位内容：官方槽位接线与 owner 契约只在 `dsh-proton-adapter-dsh`，域包通过 region 与 `ctx.protonWorkspace` 参与。
 - 不修改 `dsh-workspace-mesh` 的 Host API，不实现 VS Code 布局。
 - 本地锚点不是远端挂载：agent loop 始终在归属机。
 - 不为 mesh 请求增加网络 abort（mesh API 改动超出范围）：晚到的 owner 回调在本地抑制。

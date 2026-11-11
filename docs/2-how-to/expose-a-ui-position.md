@@ -69,6 +69,17 @@ export function apply(ctx: Context): void {
 - `priority` 默认 `-100`，低于官方 occupant，outlet 因此能接管。不要随手改成正值。
 - 官方原实现由 `OriginalSlotEntry` 渲染。它只支持 native/browse directory-flow 那一类 entry，其他形态会抛错。边界见[设计文档](../4-explanation/standalone-composition.md)。
 
+## 契约从质子导入，不重声明
+
+slot key、owner props 与服务接口都由质子导出。域包消费时用 `import type`，不要本地抄一份：
+
+```ts
+import type {} from 'dsh-proton-adapter-dsh/client'          // 事件与 protonComposer
+import type { WorkspaceServices } from 'dsh-proton-workspace/client'
+```
+
+`import type` 构建时被擦除，不产生运行时依赖；但它让契约漂移变成编译错误。本地重声明会切断这道检查，只在运行时暴露。
+
 ## 步骤 3：渲染 Host（仅当位置是全新的）
 
 位置没有官方 slot 时，你在自己的组件里渲染 Host：

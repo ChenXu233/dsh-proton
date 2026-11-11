@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { useRef, useSyncExternalStore } from 'react'
 import { defineStore } from '@deepseek-ai/dsh-client-store'
+import { createComposerSeat } from './composer'
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from 'dsh-proton/client'
 import type { EntryKitSources, SplitState, SplitStore } from 'dsh-proton/client'
@@ -65,7 +66,26 @@ export interface ComposerSubmitRequest {
   readonly clear: () => void
 }
 
+/**
+ * The shipped composer's submit tap.
+ *
+ * Taking the composer seat is not part of the workspace job: a composition that
+ * installs this adapter for the workspace seats must keep the shipped composer's
+ * own rendering. The seat is mounted by the first tap and released by the last.
+ */
+export interface ProtonComposerService {
+  /**
+   * Ask the shipped composer to consult proton/composer-submit before it sends.
+   * @returns disposer; the seat leaves with the last one.
+   */
+  addSubmitTap(): () => void
+}
+
 declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** The composer submit tap; present while this adapter is mounted. */
+    protonComposer: ProtonComposerService
+  }
   interface Events {
     /**
      * The shipped composer is about to submit. A listener returns true to take
@@ -297,7 +317,6 @@ export function composerKitSources(ctx: Context): EntryKitSources {
 
 export function apply(ctx: Context): void {
   const split = createSplitStore()
-  const composerSources = composerKitSources(ctx)
   ctx.effect(
     () => ctx.proton.connect([
       ...DIRECTORY_FLOW_SLOTS.map(slot => ({ slot, region: DIRECTORY_FLOW_REGION })),
@@ -311,25 +330,35 @@ export function apply(ctx: Context): void {
         // pane (default half, never below 120px, never above 80%).
         split: { defaultRatio: 0.5, minPx: 120, maxRatio: 0.8 },
       },
-      {
-        slot: COMPOSER_SLOT,
-        region: COMPOSER_REGION,
-        // No content of our own: the seat exists so the submit verb can ask
-        // other plugins first. The shipped body renders through the entry face
-        // with its kit untouched except for the submit verb.
-        alwaysShadow: true,
-        render: (entry, owner) => ctx.proton.entryFace(entry, {
-          ...composerSources,
-          owner,
-          // Child slots of the composer (permission, plan, attachments, …) read
-          // the root standard hooks; the seat carries them, so hand them down.
-          standard: standardOf(owner),
-          // The seat is session-scoped: its inject factory needs the id the host
-          // renderer would pass. Without it the entry crashes on undefined.
-          scope: { sessionId: currentSessionId() },
-        }),
-      },
     ], { split }),
     'proton-adapter-dsh: workspace outlets',
   )
+
+  // The composer seat belongs to no domain and is taken on request only. A
+  // composition that mounts this adapter for the workspace seats must keep the
+  // shipped composer's own rendering; addSubmitTap() is the explicit ask, and
+  // the seat leaves with the last disposer.
+  const composerSources = composerKitSources(ctx)
+  const composerSeat = createComposerSeat(() => ctx.proton.connect([{
+    slot: COMPOSER_SLOT,
+    region: COMPOSER_REGION,
+    // No content of our own: the seat exists so the submit verb can ask other
+    // plugins first. The shipped body renders through the entry face with its
+    // kit untouched except for the submit verb.
+    alwaysShadow: true,
+    render: (entry, owner) => ctx.proton.entryFace(entry, {
+      ...composerSources,
+      owner,
+      // Child slots of the composer (permission, plan, attachments, …) read the
+      // root standard hooks; the seat carries them, so hand them down.
+      standard: standardOf(owner),
+      // The seat is session-scoped: its inject factory needs the id the host
+      // renderer would pass. Without it the entry crashes on undefined.
+      scope: { sessionId: currentSessionId() },
+    }),
+  }]))
+  ctx.provide('protonComposer', {
+    addSubmitTap: () => composerSeat.addSubmitTap(),
+  })
+  ctx.effect(() => () => composerSeat.dispose(), 'proton-adapter-dsh: composer seat')
 }

@@ -27,7 +27,7 @@ declare module 'dsh-proton/client' {
 | `workspace.list` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces`（含子槽 `directoryFlow`） |
 | `workspace.directoryFlow` | `DirectoryFlowContext` | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces.directoryFlow` 与 `conversation.hero.workspace.directoryFlow` |
 | `hero.workspace` | `Record<string, unknown>`（owner props） | `dsh-proton-workspace` | 是：`conversation.hero.workspace`（只换 kit，不换组件） |
-| `composer.bar` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 是：`conversation.composer.bar`（只换 kit 的一个成员：提交动词） |
+| `composer.bar` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 按需：`conversation.composer.bar`（消费者调用 `ctx.protonComposer.addSubmitTap()` 才接管；只换 kit 的一个成员：提交动词） |
 
 官方槽位与 `DirectoryFlowContext` 都只出现在适配包里；域包通过 `registerDecorator` 参与，不 import `ui-workspace`。
 
@@ -104,11 +104,13 @@ interface EntryKitSources {
 
 ### 会话作用域的座位：scope、standard、kitTap
 
-`conversation.composer.bar` 是 `session-maybe` 槽。接管它要额外交待三件事，否则 entry 会崩或子槽缺失（`dsh-proton-adapter-dsh` 的 composer 座位是完整示例）：
+`conversation.composer.bar` 是 `session-maybe` 槽。座位由 `ctx.protonComposer.addSubmitTap()` 按需申请；一旦接管，要额外交待三件事，否则 entry 会崩或子槽缺失（`dsh-proton-adapter-dsh` 的 composer 座位是完整示例）：
 
 - **scope.sessionId**：宿主渲染器把会话 id 作为 inject 的第一个参数传入（`InjectParams`：session 槽 `[sessionId]`，entry 带 store 时再加 `actions`）。质子的座位没有作用域，必须由域包提供 `scope: { sessionId }`；`EntryFace` 按 session 缓存 inject 结果，session 变了重新执行。
 - **standard 下传**：座位里的子槽（权限、计划、附件…）由 `renderSlot` 渲染，需要 root 标准 kit。渲染器把标准 props 交给 occupant，域包把它们（`use*` 与 `renderFactorySlot`）作为 `standard` 传给 `entryFace`，子槽才拿得到 `useProjection` 这类 hook。
 - **子槽继承座位的标准 kit**：座位里的子槽由 `renderSlot` 渲染，子 entry 需要根 `use*` hooks（rc.1 起 `useSessionAccess` 这类）。座位把 *当前* owner props 透传给每个子 entry，而不是 memo 时那一份；否则子槽拿到的是空 kit。域包用它在提交前插一层询问（`ctx.bail`），没人认领就调用原函数，官方行为不变。`ownerRef.current` 是本次渲染的 owner props，避免把逐次数据写进 memo。
+
+座位本身不常驻：`ctx.protonComposer.addSubmitTap()` 的第一个调用挂载它，最后一份释放后撤离；没人申请时 composer 完全由官方渲染。
 
 注意：`StoredEntry.options` 只有 `key` / `id` / `order` / `label` / `priority`，**没有槽名**，所以按 entry 认领的 provider 无法区分座位。单座位接管直接在 outlet 的 `render` 里调 `ctx.proton.entryFace(entry, sources)`，不经过 `addEntrySources`。
 
