@@ -87,6 +87,32 @@ import type {} from 'dsh-proton-workspace/services'      // protonWorkspace 服�
 
 composer 座位不随适配包常驻：消费者调用 `ctx.protonComposer.addSubmitTap()` 申请，最后一份释放后撤走；没人申请时 composer 完全由官方渲染。
 
+## 包边界判据
+
+包是部署单元，不是文件分组。三条判据同时成立才独立成包：
+
+1. **省略后仍成立**：把它从 composition 里拿掉，剩下的仍是可用系统——官方 UI 原样、其他能力照常。
+2. **省略的差别可感知**：装不装它改变的是渲染路径、依赖体积或变更节奏，而不是一次运行时开关。
+3. **性质单一**：拆出去的内容属于同一种东西（域，或官方私有契约），准入标准能用一句话说清。
+
+按这条判据，现状的分与不分：
+
+| 东西 | 结论 | 理由 |
+| --- | --- | --- |
+| `dsh-proton` | 独立包 | 机制层，不带任何域也能成立 |
+| `dsh-proton-adapter-dsh` | 独立包 | 官方私有契约的唯一出处；不装域时官方 UI 原样 |
+| `dsh-proton-workspace` | 独立包 | 域：有状态（来源表、section、隐藏会话）与服务；省略后 adapter 仍成立 |
+| composer 座位 | 并进 adapter | 官方契约适配、无状态；省略 = 不调用 `addSubmitTap()`，拆出去只能做薄壳 |
+| directory-flow 席位 | 并进 adapter | 与 sidebar 列表同一上游族、同一类契约；没有「只要目录流不要列表」的部署 |
+| `hero.workspace` 座位 | 留在 workspace | 它的行来自域，属于工作区域本身 |
+| `/composer`、`/services` | 不是包 | 只含类型的子路径，没有部署意义 |
+
+复查触发，任一成立就重新判：
+
+- 省略后的组合不再成立（例如 adapter 开始强制渲染官方座位）。
+- 省略的差别变成用户可感知：第二个不装 workspace 的 composer 消费者，或这段代码大到影响安装。
+- 拆出去不再是薄壳：composer 长出状态或策略（草稿预处理、附件路由、发送队列）。
+
 ## 非目标
 
 - 不修改或 monkey patch 上游，不读 React internals，不搬 DOM。
