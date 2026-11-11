@@ -77,9 +77,11 @@ Outlet 采用接管时的 live winner 与接管后新注册的 entry；随后被
 官方槽位 key 与 owner props 契约以 `dsh-proton-adapter-dsh` 的导出为准；域层服务（`WorkspaceServices`）由 `dsh-proton-workspace` 导出。同仓库的域包为了让两个 client bundle 各自独立，可以本地拼写 slot key，但要用测试钉住（`packages/workspace/tests/contract.test.ts`）。跨仓库的域包不享有这条例外，消费时用 `import type`，不要本地重声明：
 
 ```ts
-import type {} from 'dsh-proton-adapter-dsh/client'
-import type { WorkspaceServices } from 'dsh-proton-workspace/client'
+import type {} from 'dsh-proton-adapter-dsh/composer'   // 事件与 protonComposer
+import type {} from 'dsh-proton-workspace/services'      // protonWorkspace 服务
 ```
+
+两个 client 入口会连带引入官方 ui-workspace 的 slot 声明；只消费契约时走 `composer` / `services` 这两个只含类型的子路径，就不会把别人的槽位表拉进自己的类型程序（自己的 vendor 分叉尤其会被撞）。
 
 `import type` 在构建时被擦除，不产生运行时依赖，独立发版不受影响；它换来的是契约漂移变成编译错误。在本地抄一份同名类型会切断这道检查，问题只会在运行时出现。
 

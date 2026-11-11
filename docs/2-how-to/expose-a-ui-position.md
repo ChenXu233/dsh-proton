@@ -74,9 +74,11 @@ export function apply(ctx: Context): void {
 slot key、owner props 与服务接口都由质子导出。域包消费时用 `import type`，不要本地抄一份：
 
 ```ts
-import type {} from 'dsh-proton-adapter-dsh/client'          // 事件与 protonComposer
-import type { WorkspaceServices } from 'dsh-proton-workspace/client'
+import type {} from 'dsh-proton-adapter-dsh/composer'   // 事件与 protonComposer
+import type {} from 'dsh-proton-workspace/services'      // protonWorkspace 服务
 ```
+
+用 `/composer` 与 `/services` 而不是 `/client`：client 入口会连带引入官方 ui-workspace 的 slot 声明，自己的 vendor 分叉会被撞出重复声明。
 
 `import type` 构建时被擦除，不产生运行时依赖；但它让契约漂移变成编译错误。本地重声明会切断这道检查，只在运行时暴露。
 

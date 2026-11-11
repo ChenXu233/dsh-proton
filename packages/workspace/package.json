@@ -19,6 +19,9 @@
     "./client": {
       "types": "./src/client/index.tsx",
       "default": "./lib/client.js"
+    },
+    "./services": {
+      "types": "./src/client/services.ts"
     }
   },
   "files": [

@@ -19,6 +19,9 @@
     "./client": {
       "types": "./src/client/index.tsx",
       "default": "./lib/client.js"
+    },
+    "./composer": {
+      "types": "./src/client/composer-contract.ts"
     }
   },
   "files": [

@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { EntryKitSources } from 'dsh-proton/client'
 import { isPickerEntry, pickerSources } from './picker'
 import type { PickerExtras } from './picker'
-import type { HiddenSessionSource } from './index'
+import type { HiddenSessionSource } from './services'
 
 /** Observable source the host would expose as a selector hook. */
 interface ObservableLike<T = unknown> {
