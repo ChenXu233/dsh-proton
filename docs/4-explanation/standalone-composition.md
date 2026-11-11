@@ -95,17 +95,19 @@ composer 座位不随适配包常驻：消费者调用 `ctx.protonComposer.addSu
 2. **省略的差别可感知**：装不装它改变的是渲染路径、依赖体积或变更节奏，而不是一次运行时开关。
 3. **性质单一**：拆出去的内容属于同一种东西（域，或官方私有契约），准入标准能用一句话说清。
 
-按这条判据，现状的分与不分：
+按这条判据，现状的分与不分。座位归属另有一条更硬的规则：**座位跟着区域走**——区域由谁声明，谁负责接管对应的官方槽；跨包只传 region 名与 context 类型。
 
 | 东西 | 结论 | 理由 |
 | --- | --- | --- |
 | `dsh-proton` | 独立包 | 机制层，不带任何域也能成立 |
 | `dsh-proton-adapter-dsh` | 独立包 | 官方私有契约的唯一出处；不装域时官方 UI 原样 |
 | `dsh-proton-workspace` | 独立包 | 域：有状态（来源表、section、隐藏会话）与服务；省略后 adapter 仍成立 |
-| composer 座位 | 并进 adapter | 官方契约适配、无状态；省略 = 不调用 `addSubmitTap()`，拆出去只能做薄壳 |
-| directory-flow 席位 | 并进 adapter | 与 sidebar 列表同一上游族、同一类契约；没有「只要目录流不要列表」的部署 |
-| `hero.workspace` 座位 | 留在 workspace | 它的行来自域，属于工作区域本身 |
+| composer 座位 | 并进 adapter | 区域 `composer.bar` 由 adapter 声明，座位跟随区域；能力按需挂载，拆出去只能做薄壳 |
+| directory-flow 席位 | 并进 adapter | 区域 `workspace.directoryFlow` 由 adapter 声明；没有「只要目录流不要列表」的部署 |
+| `hero.workspace` 座位 | 留在 workspace | 区域 `hero.workspace` 由 workspace 声明；picker 的 kit 也由本包提供 |
 | `/composer`、`/services` | 不是包 | 只含类型的子路径，没有部署意义 |
+
+两个看起来同类的座位分属两个包，不是因为一个有状态一个没有，而是因为区域归属不同。
 
 复查触发，任一成立就重新判：
 
