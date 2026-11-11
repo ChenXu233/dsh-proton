@@ -95,19 +95,28 @@ composer 座位不随适配包常驻：消费者调用 `ctx.protonComposer.addSu
 2. **省略的差别可感知**：装不装它改变的是渲染路径、依赖体积或变更节奏，而不是一次运行时开关。
 3. **性质单一**：拆出去的内容属于同一种东西（域，或官方私有契约），准入标准能用一句话说清。
 
-按这条判据，现状的分与不分。座位归属另有一条更硬的规则：**座位跟着区域走**——区域由谁声明，谁负责接管对应的官方槽；跨包只传 region 名与 context 类型。
+按这条判据，现状：
 
-| 东西 | 结论 | 理由 |
+| 包 | 结论 | 理由 |
 | --- | --- | --- |
 | `dsh-proton` | 独立包 | 机制层，不带任何域也能成立 |
 | `dsh-proton-adapter-dsh` | 独立包 | 官方私有契约的唯一出处；不装域时官方 UI 原样 |
 | `dsh-proton-workspace` | 独立包 | 域：有状态（来源表、section、隐藏会话）与服务；省略后 adapter 仍成立 |
-| composer 座位 | 并进 adapter | 区域 `composer.bar` 由 adapter 声明，座位跟随区域；能力按需挂载，拆出去只能做薄壳 |
-| directory-flow 席位 | 并进 adapter | 区域 `workspace.directoryFlow` 由 adapter 声明；没有「只要目录流不要列表」的部署 |
-| `hero.workspace` 座位 | 留在 workspace | 区域 `hero.workspace` 由 workspace 声明；picker 的 kit 也由本包提供 |
-| `/composer`、`/services` | 不是包 | 只含类型的子路径，没有部署意义 |
 
-两个看起来同类的座位分属两个包，不是因为一个有状态一个没有，而是因为区域归属不同。
+### 座位归哪个包
+
+官方 entry 分两种：普通 directory-flow entry 能由 `OriginalSlotEntry` 原样画；富 entry（带 locale/children/store）必须有人提供 kit，缺源时 fail loud。接管条件也分两种：有内容才接（`occupied`）、无条件接（`alwaysShadow`）。两条交叉决定座位归属：
+
+| 座位 | entry | 接管条件 | kit 来源 | 归属 |
+| --- | --- | --- | --- | --- |
+| `sidebar.workspaces` | 富 | 有 section 才接 | `dsh-proton-workspace` | adapter |
+| 两个 `*.directoryFlow` 子槽 | 普通 | 有 decorator 才接 | 不需要 | adapter |
+| `conversation.hero.workspace` | 富 | `alwaysShadow` | `dsh-proton-workspace` | workspace |
+| `conversation.composer.bar` | 富 | `alwaysShadow` + 消费者申请 | adapter 自己 | adapter |
+
+一句话：**无条件接管又需要 kit 的座位，必须和 kit 提供者同包**，否则接管的那一刻就可能无源可画；有内容才接管的座位，内容本身证明提供者已挂载，座位放在声明区域的包。composer 和 hero picker 分属两个包，是因为 kit 提供者不同，不是因为一个有状态一个没有。
+
+`/composer`、`/services` 是只含类型的子路径，不是包。
 
 复查触发，任一成立就重新判：
 
