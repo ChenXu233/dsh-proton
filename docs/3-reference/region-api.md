@@ -28,6 +28,7 @@ declare module 'dsh-proton/client' {
 | `workspace.directoryFlow` | `DirectoryFlowContext` | `dsh-proton-adapter-dsh` | 是：`sidebar.workspaces.directoryFlow` 与 `conversation.hero.workspace.directoryFlow` |
 | `hero.workspace` | `Record<string, unknown>`（owner props） | `dsh-proton-workspace` | 是：`conversation.hero.workspace`（只换 kit，不换组件） |
 | `composer.bar` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 按需：`conversation.composer.bar`（消费者调用 `ctx.protonComposer.addSubmitTap()` 才接管；只换 kit 的一个成员：提交动词） |
+| `model.seat` | `Record<string, unknown>`（owner props） | `dsh-proton-adapter-dsh` | 按需：`conversation.input.model`（消费者调用 `ctx.protonModelSeat.addRouter()` 才接管；只换路由成员：`available` / `select` / `load` / `directory`） |
 
 官方槽位与 `DirectoryFlowContext` 都只出现在适配包里；域包通过 `registerDecorator` 参与，不 import `ui-workspace`。
 
@@ -113,6 +114,26 @@ interface EntryKitSources {
 座位本身不常驻：`ctx.protonComposer.addSubmitTap()` 的第一个调用挂载它，最后一份释放后撤离；没人申请时 composer 完全由官方渲染。
 
 注意：`StoredEntry.options` 只有 `key` / `id` / `order` / `label` / `priority`，**没有槽名**，所以按 entry 认领的 provider 无法区分座位。单座位接管直接在 outlet 的 `render` 里调 `ctx.proton.entryFace(entry, sources)`，不经过 `addEntrySources`。
+
+### 模型座位：`protonModelSeat`
+
+`conversation.input.model` 的官方 entry 对**寻址子代理会话是被围起来的**：它的注入面对这类会话回答 `available: false`（选择器整块渲染 `null`），而 `load()` / `select()` 会从被围起来的目录里抛错。所以要把某个会话的选择送到别处，只有换掉这几个成员这一条路——那正是这个席位存在的理由。
+
+```ts
+import type { ModelSeatRouter, ModelSeatRouting } from 'dsh-proton-adapter-dsh/model-seat'
+
+ctx.protonModelSeat.addRouter(sessionId => sessionId === 'child-1'
+  ? { available: true, load: () => {}, select: selection => applySomewhere(selection) }
+  : undefined)
+```
+
+- **按注册顺序询问，第一个作答的获胜**；全体返回 `undefined` 时该会话拿回 shipped kit。没有 router 时座位**不注册**，选择器完全由官方渲染。
+- `available`：是否让 shipped picker 渲染。官方对寻址子代理会话回答 false，路由要让它出现就得写 true。
+- `select`：返回 `{ ok: true }` 或 `{ ok: false, error: { code, message } }`。官方 `ModelSelect` 读这个结构弹 toast；`@hytime/dsh-thinking-effort` 的 `Slider` 完全忽略返回值——所以不要 reject，被拒绝的 Promise 会从那边的点击处理里逃逸成未捕获异常。
+- `load`：选择器打开时调用。官方那个闭包捕获了 `available` 的旧值，路由把 `available` 改成 true 之后它仍然空转；thinking-effort 则直接调被围起来的 `directory.load()`，同步抛错。换掉它是这两个 picker 都能用的前提。
+- `directory`：换掉它意味着**同时**接管模型分组（含推理档位元数据）和该会话的选择投影。shipped 目录两样都已经有了，所以除非确实需要，别动这一项。
+
+**路由在 kit 组装时才被读取**：`EntryFace` 按「entry × sessionId」记忆整个 kit，所以 router 必须在那个会话首次绘制前就位；之后才注册的 router 不会重画已经组装好的座位，下一次换会话重装才会生效。
 
 ## 渲染顺序
 

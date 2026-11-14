@@ -60,6 +60,7 @@ Outlet 采用接管时的 live winner 与接管后新注册的 entry；随后被
 | 初次打开就调 `next()` | 官方 native picker 抢走本机/远端选择 | 用户明确选择本机前不调 `next()` |
 | 远端 Promise 在取消或卸载后完成 | 对已关闭的流程调用 `onPicked` | active 标记 + ticket 守卫，晚到回调本地抑制 |
 | 注入缓存与 React state 只在 Proton 持有 Outlet 期间成立 | 接管与恢复边界会 remount 官方组件，其瞬时状态可能重置 | 作为已知限制接受：不承诺状态连续 |
+| kit 按「entry × sessionId」只组装一次 | 之后才注册的 `addEntrySources` provider 或 `addRouter` router 不会重画已挂载的座位 | 座位类扩展点必须在对应会话首次绘制前申请；换会话会重新组装 |
 
 ## 工作区域
 
@@ -85,7 +86,7 @@ import type {} from 'dsh-proton-workspace/services'      // protonWorkspace 服�
 
 `import type` 在构建时被擦除，不产生运行时依赖，独立发版不受影响；它换来的是契约漂移变成编译错误。在本地抄一份同名类型会切断这道检查，问题只会在运行时出现。
 
-composer 座位不随适配包常驻：消费者调用 `ctx.protonComposer.addSubmitTap()` 申请，最后一份释放后撤走；没人申请时 composer 完全由官方渲染。
+composer 与模型座位都不随适配包常驻：消费者调用 `ctx.protonComposer.addSubmitTap()` 或 `ctx.protonModelSeat.addRouter()` 申请，最后一份释放后撤走；没人申请时两者完全由官方渲染。两个座位放在同一个包，是因为它们的 kit 提供者都是适配层自己——座位需要的那点 `t`、standard props 与会话作用域，本身就是"官方私有契约"那一件事。
 
 ## 包边界判据
 
@@ -113,6 +114,7 @@ composer 座位不随适配包常驻：消费者调用 `ctx.protonComposer.addSu
 | 两个 `*.directoryFlow` 子槽 | 普通 | 有 decorator 才接 | 不需要 | adapter |
 | `conversation.hero.workspace` | 富 | `alwaysShadow` | `dsh-proton-workspace` | workspace |
 | `conversation.composer.bar` | 富 | `alwaysShadow` + 消费者申请 | adapter 自己 | adapter |
+| `conversation.input.model` | 富 | `alwaysShadow` + 消费者申请 | adapter 自己 | adapter |
 
 一句话：**无条件接管又需要 kit 的座位，必须和 kit 提供者同包**，否则接管的那一刻就可能无源可画；有内容才接管的座位，内容本身证明提供者已挂载，座位放在声明区域的包。composer 和 hero picker 分属两个包，是因为 kit 提供者不同，不是因为一个有状态一个没有。
 

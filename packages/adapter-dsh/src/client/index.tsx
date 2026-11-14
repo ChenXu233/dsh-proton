@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { useRef, useSyncExternalStore } from 'react'
 import { defineStore } from '@deepseek-ai/dsh-client-store'
 import { createComposerSeat } from './composer'
+import { applyModelSeatRouting, createModelSeat } from './model-seat'
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from 'dsh-proton/client'
 import type { EntryKitSources, SplitState, SplitStore } from 'dsh-proton/client'
@@ -40,6 +41,15 @@ export const COMPOSER_SLOT = 'conversation.composer.bar' as const
 export const COMPOSER_REGION = 'composer.bar' as const
 
 /**
+ * The shipped model picker at the composer's trailing edge. This adapter takes
+ * the seat only to let another plugin route a session's selection elsewhere:
+ * with no router registered the shipped picker renders itself.
+ */
+export const MODEL_SEAT_SLOT = 'conversation.input.model' as const
+/** Region the model seat shadows (it hosts no content of its own). */
+export const MODEL_SEAT_REGION = 'model.seat' as const
+
+/**
  * Child slots the shipped workspace list declares along with its own
  * registration. An outlet shadows that registration, so it inherits the whole
  * contract — the directory flow below the list must keep existing even when
@@ -52,9 +62,16 @@ export const WORKSPACES_CHILDREN = {
 /** The shipped owner contract, re-exported so domains never import ui-workspace themselves. */
 export type DirectoryFlowContext = DirectoryFlowOwnerProps
 
-// The composer contract lives in its own module so consumers can import it
+// The seat contracts live in their own modules so consumers can import them
 // without pulling the official ui-workspace declarations above.
 export type { ComposerSubmitRequest, ProtonComposerService } from './composer-contract'
+export type {
+  ModelSeatResult,
+  ModelSeatRouter,
+  ModelSeatRouting,
+  ModelSeatSelection,
+  ProtonModelSeatService,
+} from './model-seat-contract'
 
 declare module 'dsh-proton/client' {
   interface ProtonRegionMap {
@@ -63,6 +80,8 @@ declare module 'dsh-proton/client' {
     'workspace.list': { context: Record<string, unknown> }
     /** Owner props of the shipped composer body; opaque here. */
     'composer.bar': { context: Record<string, unknown> }
+    /** Owner props of the shipped model picker; opaque here. */
+    'model.seat': { context: Record<string, unknown> }
   }
 }
 
@@ -320,4 +339,42 @@ export function apply(ctx: Context): void {
     addSubmitTap: () => composerSeat.addSubmitTap(),
   })
   ctx.effect(() => () => composerSeat.dispose(), 'proton-adapter-dsh: composer seat')
+
+  // The model seat belongs to no domain either. It is mounted only while a
+  // router wants to decide where some session's selection goes; with none
+  // registered, the shipped picker keeps the seat and this adapter is invisible.
+  const modelSeat = createModelSeat(() => ctx.proton.connect([{
+    slot: MODEL_SEAT_SLOT,
+    region: MODEL_SEAT_REGION,
+    // No content of our own: the seat exists so routers can replace the routing
+    // members of whichever entry won it, with everything else left as shipped.
+    alwaysShadow: true,
+    render: (entry, owner) => {
+      const sessionId = currentSessionId()
+      // The shipped inject resolves the session's directory, so an entry face
+      // without an id throws inside the seat — and the host retires an entry
+      // that throws. There is nothing to draw before a conversation is open.
+      if (sessionId === undefined) return null
+      const locale = (ctx as unknown as { locale?: LocaleLike }).locale
+      return ctx.proton.entryFace(entry, {
+        translate: namespace => (locale === undefined ? (key: string) => key : locale.bind(namespace)),
+        storeOf: (candidate, id) => storeSeat(candidate as RawEntry, id),
+        kitTap: (kit) => {
+          const routing = modelSeat.routing(sessionId)
+          return routing === undefined ? kit : applyModelSeatRouting(kit, routing)
+        },
+        // Child slots the picker renders (the model label) may read the root
+        // standard hooks; the seat carries them, so hand them down.
+        standard: standardOf(owner),
+        // The seat is session-scoped: its inject factory needs the id the host
+        // renderer would pass.
+        scope: { sessionId },
+        owner,
+      })
+    },
+  }]))
+  ctx.provide('protonModelSeat', {
+    addRouter: router => modelSeat.addRouter(router),
+  })
+  ctx.effect(() => () => modelSeat.dispose(), 'proton-adapter-dsh: model seat')
 }
