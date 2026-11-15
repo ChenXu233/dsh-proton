@@ -28,7 +28,9 @@ node --check packages/workspace/lib/client.js
 
 ## 挂载
 
-本仓库的 `cordis.patch.yml` 故意为空：挂载权归部署者的 profile patch，Entry 因此唯一且属 profile 所有。在**同一个** DSH profile 中挂载：
+每个包自带一行组合行：`dsh plugin add <包名>` 装完之后，profile 的 bundle 层就会把该包挂进组合，不需要再手写 patch。要改 id 或给配置，就在 profile 自己的 `cordis.patch.yml` 里用**同一个 id** 写一行——后层按 id 覆盖前层，entry 仍然唯一；换成别的 id 会挂载两次，那才是出错的写法。
+
+在**同一个** DSH profile 中安装需要的包（每个包只负责挂载自己，前置包要一起装）：
 
 - `dsh-proton`（核心运行时）
 - `dsh-proton-adapter-dsh`（把官方 directory-flow 席位接到核心）

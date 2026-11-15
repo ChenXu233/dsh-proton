@@ -1,5 +1,8 @@
-# dsh-proton-workspace bundle layer.
-# Intentionally empty: the plugin is mounted from the DEPLOYER's profile patch
-# (- id: proton-workspace / name: dsh-proton-workspace), which makes the entry uniquely
-# addressed and profile-owned.
-[]
+# dsh-proton-workspace bundle layer: mounts the workspace domain into the
+# profile that has this bundle installed.
+#
+# Override by id in the profile's cordis.patch.yml rather than inserting a second
+# row under another id: two rows mount the domain twice.
+- insert:
+    - id: proton-workspace
+      name: dsh-proton-workspace

@@ -1,5 +1,9 @@
-# proton bundle layer.
-# Intentionally empty: the plugin is mounted from the DEPLOYER's profile patch
-# (- id: proton / name: proton), which makes the entry uniquely addressed and
-# profile-owned.
-[]
+# proton bundle layer: mounts the composition runtime into the profile that has
+# this bundle installed, so `dsh plugin add dsh-proton` is the whole install.
+#
+# A deployer that wants another id or its own config overrides this row by
+# writing the same id in the profile's cordis.patch.yml: a later layer wins by
+# id, so the entry stays unique and profile-owned either way.
+- insert:
+    - id: proton
+      name: dsh-proton

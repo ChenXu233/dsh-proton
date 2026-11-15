@@ -1,5 +1,9 @@
-# dsh-proton-adapter-dsh bundle layer.
-# Intentionally empty: the plugin is mounted from the DEPLOYER's profile patch
-# (- id: proton-adapter-dsh / name: dsh-proton-adapter-dsh), which makes the entry uniquely
-# addressed and profile-owned.
-[]
+# dsh-proton-adapter-dsh bundle layer: mounts the official-contract adapter into
+# the profile that has this bundle installed.
+#
+# Override by id in the profile's cordis.patch.yml rather than inserting a second
+# row under another id: two rows mount the adapter twice, and the second
+# `ctx.provide` fails.
+- insert:
+    - id: proton-adapter-dsh
+      name: dsh-proton-adapter-dsh
