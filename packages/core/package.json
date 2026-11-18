@@ -1,6 +1,6 @@
 {
   "name": "dsh-proton",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "质子 —— DSH 的通用 Region / Renderer / Decorator 运行时（不含任何产品域语义）",
   "repository": {
     "type": "git",
@@ -37,25 +37,25 @@
       "patch": "./cordis.patch.yml"
     },
     "engines": {
-      "dsh": ">=0.2.2-rc.1"
+      "dsh": ">=0.2.2-rc.5"
     },
     "client": {
       "platform": "web"
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/cordis": "^4.1.0",
     "react": "^18.2.0",
-    "@deepseek-ai/dsh-client-store": "^0.2.2-rc.1"
+    "@deepseek-ai/dsh-client-store": "^0.2.2-rc.5"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.5",
     "@testing-library/react": "^16.3.0",
     "jsdom": "^27.0.0",
     "react-dom": "^18.3.1",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-store": "0.2.2-rc.1"
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-store": "0.2.2-rc.5"
   },
   "engines": {
     "node": ">=20"

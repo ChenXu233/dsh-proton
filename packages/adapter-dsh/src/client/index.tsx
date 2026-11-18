@@ -8,13 +8,16 @@ import type {} from 'dsh-proton/client'
 import type { EntryKitSources, SplitState, SplitStore } from 'dsh-proton/client'
 
 /**
- * The two official seats a directory-picker backend's client half fills. Their
- * owner contract is the shipped `open` / `busy` / `onPicked` / `onCancel` /
- * `onError` interaction; this adapter is the only package allowed to know it.
+ * The three official seats a directory-picker backend's client half fills.
+ * Their owner contract is the shipped `open` / `busy` / `onPicked` /
+ * `onCancel` / `onError` interaction; this adapter is the only package
+ * allowed to know it. The third one lives under the `workspace.picker` Factory,
+ * which renders the same picker for other plugins' surfaces.
  */
 export const DIRECTORY_FLOW_SLOTS = [
   'sidebar.workspaces.directoryFlow',
   'conversation.hero.workspace.directoryFlow',
+  'workspace.picker.directoryFlow',
 ] as const
 
 /** Region a directory-flow decorator targets. */

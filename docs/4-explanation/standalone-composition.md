@@ -61,6 +61,7 @@ Outlet 采用接管时的 live winner 与接管后新注册的 entry；随后被
 | 远端 Promise 在取消或卸载后完成 | 对已关闭的流程调用 `onPicked` | active 标记 + ticket 守卫，晚到回调本地抑制 |
 | 注入缓存与 React state 只在 Proton 持有 Outlet 期间成立 | 接管与恢复边界会 remount 官方组件，其瞬时状态可能重置 | 作为已知限制接受：不承诺状态连续 |
 | kit 按「entry × sessionId」只组装一次 | 之后才注册的 `addEntrySources` provider 或 `addRouter` router 不会重画已挂载的座位 | 座位类扩展点必须在对应会话首次绘制前申请；换会话会重新组装 |
+| 被接管的富 entry 声明 hoc 子槽 | entry face 的 `renderSlot` 不消费 `opts.children`，包装层拿不到内层内容 | 不接管声明 hoc 子槽的座位；要接管先在 `entry.tsx` 补 hoc 分派 |
 
 ## 工作区域
 
@@ -111,7 +112,7 @@ composer 与模型座位都不随适配包常驻：消费者调用 `ctx.protonCo
 | 座位 | entry | 接管条件 | kit 来源 | 归属 |
 | --- | --- | --- | --- | --- |
 | `sidebar.workspaces` | 富 | 有 section 才接 | `dsh-proton-workspace` | adapter |
-| 两个 `*.directoryFlow` 子槽 | 普通 | 有 decorator 才接 | 不需要 | adapter |
+| 三个 `*.directoryFlow` 子槽 | 普通 | 有 decorator 才接 | 不需要 | adapter |
 | `conversation.hero.workspace` | 富 | `alwaysShadow` | `dsh-proton-workspace` | workspace |
 | `conversation.composer.bar` | 富 | `alwaysShadow` + 消费者申请 | adapter 自己 | adapter |
 | `conversation.input.model` | 富 | `alwaysShadow` + 消费者申请 | adapter 自己 | adapter |

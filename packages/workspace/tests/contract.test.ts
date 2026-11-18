@@ -8,9 +8,10 @@ it('keeps the domain region key pinned to the adapter export', () => {
   expect(DIRECTORY_FLOW_REGION).toBe(ADAPTER_REGION)
 })
 
-it('covers both shipped directory-flow seats', () => {
+it('covers every shipped directory-flow seat', () => {
   expect([...DIRECTORY_FLOW_SLOTS]).toEqual([
     'sidebar.workspaces.directoryFlow',
     'conversation.hero.workspace.directoryFlow',
+    'workspace.picker.directoryFlow',
   ])
 })

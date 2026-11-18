@@ -1,6 +1,6 @@
 {
   "name": "dsh-proton-adapter-dsh",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "质子 · DSH 适配层：唯一知道官方 slot key 与 owner props 契约的包",
   "repository": {
     "type": "git",
@@ -43,7 +43,7 @@
       "patch": "./cordis.patch.yml"
     },
     "engines": {
-      "dsh": ">=0.2.2-rc.1"
+      "dsh": ">=0.2.2-rc.5"
     },
     "client": {
       "platform": "web",
@@ -57,16 +57,16 @@
     "dsh-proton": "workspace:*"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/cordis": "^4.1.0",
     "react": "^18.2.0",
-    "@deepseek-ai/dsh-client-store": "^0.2.2-rc.1"
+    "@deepseek-ai/dsh-client-store": "^0.2.2-rc.5"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-workspace": "0.2.2-rc.1",
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.2-rc.5",
     "vitest": "^4.1.8",
-    "@deepseek-ai/dsh-client-store": "0.2.2-rc.1"
+    "@deepseek-ai/dsh-client-store": "0.2.2-rc.5"
   },
   "engines": {
     "node": ">=20"

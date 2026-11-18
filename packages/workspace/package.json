@@ -1,6 +1,6 @@
 {
   "name": "dsh-proton-workspace",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "质子 · 工作区域：目录流的选择与接纳，来源由任意 backend 通过 ctx.protonWorkspace 注册",
   "repository": {
     "type": "git",
@@ -40,7 +40,7 @@
       "patch": "./cordis.patch.yml"
     },
     "engines": {
-      "dsh": ">=0.2.2-rc.1"
+      "dsh": ">=0.2.2-rc.5"
     },
     "client": {
       "platform": "web",
@@ -55,11 +55,11 @@
     "dsh-proton-adapter-dsh": "workspace:*"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/cordis": "^4.1.0",
     "react": "^18.2.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/cordis": "4.1.0",
     "@testing-library/react": "^16.3.0",
     "jsdom": "^27.0.0",
     "react": "^18.3.1",
